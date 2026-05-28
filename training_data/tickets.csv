@@ -1,0 +1,41 @@
+text,category
+Cannot login to email,IT
+Need password reset,IT
+Laptop is slow,IT
+VPN connection failing,IT
+Internet not working,IT
+Computer frozen,IT
+Printer not responding,IT
+Software installation request,IT
+Need access to company portal,IT
+Keyboard not functioning,IT
+Requesting annual leave,HR
+Need sick leave approval,HR
+Update employee information,HR
+Question about benefits,HR
+Request for payslip,HR
+Need HR meeting scheduled,HR
+Complaint about workplace issue,HR
+Update personal details,HR
+Need employment verification letter,HR
+Question about leave balance,HR
+Salary not received,Finance
+Expense reimbursement request,Finance
+Invoice approval needed,Finance
+Budget allocation issue,Finance
+Tax deduction question,Finance
+Payment processing delayed,Finance
+Purchase order request,Finance
+Need financial statement,Finance
+Payroll issue,Finance
+Request for account update,Finance
+Need office supplies,Operations
+Meeting room booking request,Operations
+Delivery issue reported,Operations
+Inventory shortage,Operations
+Facility maintenance required,Operations
+Courier service request,Operations
+Workspace relocation request,Operations
+Security access issue,Operations
+Cleaning service complaint,Operations
+Operational workflow issue,Operations
