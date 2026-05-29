@@ -9,6 +9,41 @@ Printer not responding,IT
 Software installation request,IT
 Need access to company portal,IT
 Keyboard not functioning,IT
+My computer keeps crashing,IT
+Blue screen of death on my PC,IT
+Cannot connect to WiFi,IT
+Monitor not displaying,IT
+Mouse not working,IT
+USB device not recognized,IT
+Email client not opening,IT
+Cannot send or receive emails,IT
+Outlook keeps freezing,IT
+System running out of disk space,IT
+Need antivirus installed,IT
+Remote desktop not connecting,IT
+Two-factor authentication not working,IT
+Phone not syncing with company system,IT
+Teams or Zoom not working,IT
+Video call issues,IT
+Microphone not detected,IT
+Camera not working on laptop,IT
+Need new software license,IT
+Application keeps crashing,IT
+Cannot access shared drive,IT
+File permissions issue,IT
+Cannot open PDF files,IT
+Browser not loading pages,IT
+Slow internet connection at office,IT
+Network drive disconnecting,IT
+IT support needed urgently,IT
+Computer won't turn on,IT
+Power adapter broken,IT
+Laptop battery not charging,IT
+Need IT help with system error,IT
+Error message on screen,IT
+Windows update failing,IT
+Cannot install updates,IT
+IT ticket for broken equipment,IT
 Requesting annual leave,HR
 Need sick leave approval,HR
 Update employee information,HR
@@ -29,6 +64,36 @@ Purchase order request,Finance
 Need financial statement,Finance
 Payroll issue,Finance
 Request for account update,Finance
+I have not been paid this month,Finance
+My salary was wrong,Finance
+Paycheck is missing,Finance
+Direct deposit not received,Finance
+Finance query about my payment,Finance
+I need a refund processed,Finance
+Finance issue with my expenses,Finance
+Reimbursement not approved,Finance
+My expense claim was rejected,Finance
+Need invoice paid urgently,Finance
+Vendor payment overdue,Finance
+Budget request not approved,Finance
+Finance department help needed,Finance
+Question about my tax,Finance
+Tax form not received,Finance
+Claiming travel expenses,Finance
+Medical expense reimbursement,Finance
+Finance approval for purchase,Finance
+Credit card limit issue,Finance
+Corporate card not working,Finance
+Finance complaint about charges,Finance
+Overpayment on invoice,Finance
+Underpayment received,Finance
+Finance team needs to fix salary,Finance
+Bonus not paid,Finance
+Commission not received,Finance
+Annual bonus query,Finance
+Pension contribution question,Finance
+Provident fund query,Finance
+Finance needs to process my claim,Finance
 Need office supplies,Operations
 Meeting room booking request,Operations
 Delivery issue reported,Operations
@@ -39,3 +104,16 @@ Workspace relocation request,Operations
 Security access issue,Operations
 Cleaning service complaint,Operations
 Operational workflow issue,Operations
+I need to book annual leave,HR
+Annual leave request,HR
+Sick leave query,HR
+HR help with leave booking,HR
+Can I get my payslip,HR
+Requesting payslip from HR,HR
+Employee payslip request,HR
+HR document needed,HR
+The meeting room is unavailable,Operations
+Meeting room booking problem,Operations
+Conference room not available,Operations
+Facilities help needed,Operations
+Office maintenance request,Operations
