@@ -12,50 +12,42 @@
 
 <div class="container mt-5">
 
-    <div class="hero-section text-center mb-5">
-        <h1 class="main-title">AI-Powered Ticket Classification System</h1>
-        <p class="subtitle">
-            Smart internal request categorisation for modern business operations.
-        </p>
+    <div class="d-flex justify-content-between mb-4">
+
+        <div>
+            <h2>Welcome, {{ username }}</h2>
+            <p>Department: {{ department }}</p>
+        </div>
+
+        <div>
+            <a href="/history" class="btn btn-dark">My Tickets</a>
+            <a href="/department" class="btn btn-primary">Department Tickets</a>
+            <a href="/logout" class="btn btn-danger">Logout</a>
+        </div>
+
     </div>
 
-    <div class="card shadow-lg p-4 form-card">
+    <div class="card shadow-lg p-4">
 
         <h3 class="mb-4">Submit Support Ticket</h3>
 
         <form action="/submit" method="POST">
 
-            <div class="mb-3">
-                <label class="form-label">Employee Name</label>
-                <input type="text" name="employee_name" class="form-control" required>
-            </div>
-
-            <div class="mb-3">
-                <label class="form-label">Department</label>
-                <input type="text" name="department" class="form-control" required>
-            </div>
-
             <div class="mb-4">
                 <label class="form-label">Ticket Description</label>
+
                 <textarea
                     name="ticket_text"
                     class="form-control"
                     rows="5"
-                    placeholder="Describe your issue..."
                     required></textarea>
             </div>
 
-            <button type="submit" class="btn btn-primary w-100 btn-lg">
-                Classify Ticket
+            <button type="submit" class="btn btn-primary w-100">
+                Submit Ticket
             </button>
 
         </form>
-
-        <div class="text-center mt-4">
-            <a href="/dashboard" class="btn btn-outline-dark">
-                View Dashboard
-            </a>
-        </div>
 
     </div>
 
