@@ -3,56 +3,208 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login</title>
+    <title>Smart Ticket Management - Login</title>
 
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        *{
+            margin:0;
+            padding:0;
+            box-sizing:border-box;
+            font-family:Segoe UI, sans-serif;
+        }
+
+        body{
+            min-height:100vh;
+            display:flex;
+            justify-content:center;
+            align-items:center;
+            background:#f4f6f9;
+        }
+
+        .login-container{
+            width:100%;
+            max-width:450px;
+            padding:20px;
+        }
+
+        .login-card{
+            background:white;
+            padding:40px;
+            border-radius:15px;
+            box-shadow:0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .login-card h1{
+            text-align:center;
+            margin-bottom:10px;
+        }
+
+        .subtitle{
+            text-align:center;
+            color:#666;
+            margin-bottom:30px;
+        }
+
+        .input-group{
+            margin-bottom:20px;
+        }
+
+        .input-group label{
+            display:block;
+            margin-bottom:8px;
+            font-weight:600;
+        }
+
+        .input-group input{
+            width:100%;
+            padding:12px;
+            border:1px solid #ccc;
+            border-radius:8px;
+        }
+
+        .login-btn{
+            width:100%;
+            padding:12px;
+            border:none;
+            border-radius:8px;
+            background:#2563eb;
+            color:white;
+            cursor:pointer;
+            font-size:16px;
+        }
+
+        .login-btn:hover{
+            background:#1d4ed8;
+        }
+
+        #message{
+            text-align:center;
+            margin-top:15px;
+            font-weight:bold;
+        }
+
+        .success{
+            color:green;
+        }
+
+        .error{
+            color:red;
+        }
+    </style>
 </head>
 <body>
 
-<div class="container mt-5">
+<div class="login-container">
+    <div class="login-card">
 
-    <div class="card shadow-lg p-4 mx-auto" style="max-width: 500px;">
+        <h1>Smart Ticket Management</h1>
+        <p class="subtitle">Employee Login</p>
 
-        <h2 class="mb-4 text-center">Login</h2>
+        <form id="loginForm">
 
-        {% with messages = get_flashed_messages() %}
-            {% if messages %}
-                {% for message in messages %}
-                    <div class="alert alert-warning">
-                        {{ message }}
-                    </div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
-
-        <form method="POST">
-
-            <div class="mb-3">
-                <label>Username</label>
-                <input type="text" name="username" class="form-control" required>
+            <div class="input-group">
+                <label>Email</label>
+                <input
+                    type="email"
+                    id="email"
+                    placeholder="Enter email"
+                    required
+                >
             </div>
 
-            <div class="mb-4">
+            <div class="input-group">
                 <label>Password</label>
-                <input type="password" name="password" class="form-control" required>
+                <input
+                    type="password"
+                    id="password"
+                    placeholder="Enter 4-digit password"
+                    maxlength="4"
+                    required
+                >
             </div>
 
-            <button class="btn btn-primary w-100">
+            <button type="submit" class="login-btn">
                 Login
             </button>
 
+            <p id="message"></p>
+
         </form>
 
-        <div class="text-center mt-3">
-            <a href="/register">
-                Create Account
-            </a>
-        </div>
-
     </div>
-
 </div>
+
+<script>
+
+document.addEventListener("DOMContentLoaded", () => {
+
+    const loginForm = document.getElementById("loginForm");
+    const message = document.getElementById("message");
+
+    loginForm.addEventListener("submit", async (e) => {
+
+        e.preventDefault();
+
+        const email = document.getElementById("email").value.trim();
+        const password = document.getElementById("password").value.trim();
+
+        if (!email || !password) {
+            message.className = "error";
+            message.textContent = "Please complete all fields";
+            return;
+        }
+
+        try {
+
+            const response = await fetch("/login", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    email: email,
+                    password: password
+                })
+            });
+
+            const result = await response.json();
+
+            if (response.ok && result.success) {
+
+                message.className = "success";
+                message.textContent = "Login successful";
+
+                // Store logged in user
+                localStorage.setItem(
+                    "currentUser",
+                    JSON.stringify(result)
+                );
+
+                setTimeout(() => {
+                    window.location.href = "/index";
+                }, 1000);
+
+            } else {
+
+                message.className = "error";
+                message.textContent =
+                    result.message || "Invalid email or password";
+            }
+
+        } catch (error) {
+
+            console.error(error);
+
+            message.className = "error";
+            message.textContent =
+                "Unable to connect to the server";
+        }
+
+    });
+
+});
+
+</script>
 
 </body>
 </html>

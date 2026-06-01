@@ -1,7 +1,9 @@
-from flask import Flask, render_template, request, redirect, session, flash
+from flask import Flask, render_template, request, redirect, session, flash, jsonify
 import sqlite3
 from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
+from DB.queries import authenticate_user
+from classifier import classify_ticket
 
 from classifier import classify_ticket
 
@@ -49,6 +51,40 @@ def init_db():
 
 
 init_db()
+
+
+@app.route('/')
+def home():
+    return render_template('login.html')
+
+@app.route('/login', methods=['POST'])
+def login():
+    data = request.get_json()
+    email = data.get('email')
+    password = data.get('password')
+
+    print("REQUEST:", data)
+
+    user = authenticate_user(email, password)
+
+    print("AUTH RESULT:", user)
+
+    if user:
+        return jsonify({
+            "success": True,
+            "employee_id": user["employee_id"],
+            "name": user["first_name"],
+            "redirect": "/index"
+        })
+
+    return jsonify({
+        "success": False,
+        "message": "Invalid email or password"
+    }), 401
+
+@app.route('/index')
+def index():
+    return render_template('index.html')
 
 
 # =========================
@@ -123,38 +159,38 @@ def register():
 # LOGIN
 # =========================
 
-@app.route("/login", methods=["GET", "POST"])
-def login():
+# @app.route("/login", methods=["GET", "POST"])
+# def login():
 
-    if request.method == "POST":
+#     if request.method == "POST":
 
-        username = request.form["username"]
-        password = request.form["password"]
+#         username = request.form["username"]
+#         password = request.form["password"]
 
-        conn = sqlite3.connect(DATABASE)
-        cursor = conn.cursor()
+#         conn = sqlite3.connect(DATABASE)
+#         cursor = conn.cursor()
 
-        cursor.execute("""
-            SELECT * FROM users
-            WHERE username = ?
-        """, (username,))
+#         cursor.execute("""
+#             SELECT * FROM users
+#             WHERE username = ?
+#         """, (username,))
 
-        user = cursor.fetchone()
+#         user = cursor.fetchone()
 
-        conn.close()
+#         conn.close()
 
-        if user and check_password_hash(user[2], password):
+#         if user and check_password_hash(user[2], password):
 
-            session["user_id"] = user[0]
-            session["username"] = user[1]
-            session["department"] = user[3]
-            session["role"] = user[4]
+#             session["user_id"] = user[0]
+#             session["username"] = user[1]
+#             session["department"] = user[3]
+#             session["role"] = user[4]
 
-            return redirect("/")
+#             return redirect("/")
 
-        flash("Invalid credentials.")
+#         flash("Invalid credentials.")
 
-    return render_template("login.html")
+#     return render_template("login.html")
 
 
 # =========================
@@ -173,15 +209,15 @@ def logout():
 # HOME PAGE
 # =========================
 
-@app.route("/")
-@login_required
-def home():
+# @app.route("/")
+# # @login_required
+# def home():
 
-    return render_template(
-        "index.html",
-        username=session["username"],
-        department=session["department"]
-    )
+#     return render_template(
+#         "index.html",
+#         username=session["username"],
+#         department=session["department"]
+#     )
 
 
 # =========================
