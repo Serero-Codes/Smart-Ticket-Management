@@ -1,41 +1,178 @@
 text,category
-Cannot login to email,IT
-Need password reset,IT
-Laptop is slow,IT
-VPN connection failing,IT
-Internet not working,IT
-Computer frozen,IT
-Printer not responding,IT
-Software installation request,IT
-Need access to company portal,IT
-Keyboard not functioning,IT
-Requesting annual leave,HR
-Need sick leave approval,HR
-Update employee information,HR
-Question about benefits,HR
-Request for payslip,HR
-Need HR meeting scheduled,HR
-Complaint about workplace issue,HR
-Update personal details,HR
-Need employment verification letter,HR
-Question about leave balance,HR
-Salary not received,Finance
-Expense reimbursement request,Finance
-Invoice approval needed,Finance
-Budget allocation issue,Finance
-Tax deduction question,Finance
-Payment processing delayed,Finance
-Purchase order request,Finance
-Need financial statement,Finance
-Payroll issue,Finance
-Request for account update,Finance
-Need office supplies,Operations
-Meeting room booking request,Operations
-Delivery issue reported,Operations
-Inventory shortage,Operations
-Facility maintenance required,Operations
-Courier service request,Operations
-Workspace relocation request,Operations
-Security access issue,Operations
-Cleaning service complaint,Operations
-Operational workflow issue,Operations
+Cannot login to the learning portal,IT
+My portal account is locked,IT
+Learning platform not loading,IT
+Cannot access my online course materials,IT
+LMS keeps logging me out,IT
+The e-learning platform is down,IT
+Cannot submit my assessment online,IT
+Online platform showing error message,IT
+Video lectures not playing,IT
+Course videos buffering too slowly,IT
+Cannot download study materials,IT
+My laptop issued by the programme is broken,IT
+Programme laptop won't turn on,IT
+Laptop screen is cracked,IT
+Keyboard not working on my device,IT
+My device was stolen,IT
+Lost my programme laptop,IT
+Need a replacement laptop,IT
+WiFi not working at the campus,IT
+Cannot connect to campus internet,IT
+Internet connection keeps dropping at campus,IT
+No internet access in the training room,IT
+Projector not working in the training room,IT
+Printer at campus not working,IT
+Cannot print my certificate,IT
+Zoom is not working,IT
+Microsoft Teams not loading,IT
+Video call issues during online session,IT
+Microphone not working during virtual class,IT
+Camera not detected on laptop,IT
+Cannot join virtual meeting link,IT
+Password reset needed for portal,IT
+Two-factor authentication not working,IT
+Email account not set up,IT
+Cannot access company email,IT
+Need access to Microsoft 365,IT
+Office applications not activating,IT
+Need software installed on my laptop,IT
+USB not recognized on training laptop,IT
+My training laptop is running very slowly,IT
+Blue screen error on campus computer,IT
+System crash during assessment,IT
+Cannot open PDF learning materials,IT
+Error when uploading assignment,IT
+File won't upload to the portal,IT
+My certificate is not generating,IT
+Digital badge not issued,IT
+AWS lab environment not loading,IT
+Cloud platform access not working,IT
+Azure portal login failing,IT
+Salesforce training environment broken,IT
+Cybersecurity lab tools not working,IT
+GitHub access not set up,IT
+Code editor not installing,IT
+Development environment broken,IT
+IT support needed at Braamfontein campus,IT
+IT issue at Salt River campus,IT
+IT help needed at Gqeberha hub,IT
+IT problem at Hazyview campus,IT
+My stipend has not been paid,Finance
+Stipend payment is late this month,Finance
+I did not receive my stipend,Finance
+My stipend amount is incorrect,Finance
+Stipend was underpaid,Finance
+Finance query about my monthly payment,Finance
+I need my stipend payment urgently,Finance
+Missing stipend for last month,Finance
+Stipend not reflecting in my bank account,Finance
+Wrong banking details loaded for stipend,Finance
+Need to update my banking details for payment,Finance
+Bank account change for stipend,Finance
+Stipend deposited to wrong account,Finance
+Transport allowance not paid,Finance
+Travel reimbursement not received,Finance
+Need reimbursement for travel to campus,Finance
+Data allowance not received,Finance
+Data stipend query,Finance
+Internet allowance not paid this month,Finance
+My meal allowance is outstanding,Finance
+Expense claim not processed,Finance
+Claim for equipment damage not approved,Finance
+Finance department not responding to my query,Finance
+Need proof of payment for stipend,Finance
+Request for stipend statement,Finance
+Tax certificate request,Finance
+Need financial letter for stipend,Finance
+Finance issue with NQF allowance,Finance
+SETA funding payment query,Finance
+Bursary payment not received,Finance
+Training allowance not processed,Finance
+Programme completion bonus not paid,Finance
+Finance approval for candidate expense,Finance
+Invoice from host company not processed,Finance
+Host company reimbursement outstanding,Finance
+Partner company payment not received,Finance
+Finance complaint about deduction from stipend,Finance
+Incorrect deduction from my stipend,Finance
+Overpayment recovery query,Finance
+Finance needs to fix my payment,Finance
+Payroll issue with programme allowance,Finance
+Application not acknowledged,HR
+I submitted my application but no response,HR
+Application status query,HR
+Interview not scheduled after application,HR
+Selection process query,HR
+Was not shortlisted - need feedback,HR
+Programme offer letter not received,HR
+Onboarding documents not sent,HR
+HR induction not scheduled,HR
+Employment contract query,HR
+Learnership agreement not signed,HR
+SETA registration not confirmed,HR
+NQF enrolment query,HR
+Need copy of learnership agreement,HR
+Programme exit documentation needed,HR
+Certificate of completion not received,HR
+HR complaint about facilitator,HR
+Complaint about programme conduct,HR
+Workplace harassment complaint,HR
+Grievance about programme placement,HR
+Conflict with host company staff,HR
+Unfair treatment during programme,HR
+Discrimination complaint,HR
+Programme withdrawal process,HR
+Need to take medical leave,HR
+Sick leave request for programme absence,HR
+Attendance query,HR
+Absence due to family emergency,HR
+Programme deferral request,HR
+Wellness support needed,HR
+Mental health support request,HR
+Personal circumstances affecting attendance,HR
+Reference letter request from HR,HR
+Employment verification letter needed,HR
+HR document for NSFAS query,HR
+Personal information update needed,HR
+Change of address for records,HR
+Next of kin update,HR
+HR support for candidate wellbeing,HR
+Mentor not assigned yet,HR
+Mentor not available or responsive,HR
+Mentorship session not scheduled,HR
+Need to change my assigned mentor,HR
+Training room not prepared,Operations
+Campus is not open on scheduled day,Operations
+Venue booking for assessment not confirmed,Operations
+Campus facilities complaint,Operations
+Cleaning and maintenance issue at campus,Operations
+No water or electricity at campus,Operations
+Air conditioning broken in training room,Operations
+Security issue at campus,Operations
+Access card not working at campus,Operations
+Safety concern at training venue,Operations
+Campus parking issue,Operations
+Transport to campus not arranged,Operations
+Shuttle service not available,Operations
+Campus timetable not published,Operations
+Training schedule not shared,Operations
+Assessment date changed without notice,Operations
+Module delivery behind schedule,Operations
+Facilitator absent with no replacement,Operations
+Training material not prepared for session,Operations
+Stationery not provided at campus,Operations
+Campus catering complaint,Operations
+Lunch not provided as promised,Operations
+Equipment for practical session missing,Operations
+Operations issue at Johannesburg campus,Operations
+Operations complaint at Cape Town campus,Operations
+Hub issue at Gqeberha,Operations
+Hazyview campus operational problem,Operations
+Candidate placement not arranged,Operations
+Host company placement delayed,Operations
+Internship start date not confirmed,Operations
+Workplace supervisor not assigned,Operations
+Host company not responsive,Operations
+Placement at wrong company,Operations
+Operations support needed for cohort,Operations
