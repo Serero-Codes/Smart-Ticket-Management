@@ -1,83 +1,289 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Department Tickets</title>
+{% extends "base.html" %}
+{% block title %}Department Tickets{% endblock %}
 
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-</head>
-<body>
+{% block head %}
+<style>
+/* Filter bar */
+.filter-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
 
-<div class="container mt-5">
+.filter-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 15px;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text2);
+    cursor: pointer;
+    border-radius: 20px;
+    transition: all 0.2s cubic-bezier(0.16,1,0.3,1);
+}
 
-    <div class="d-flex justify-content-between mb-4">
+.filter-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-dim);
+}
 
-        <h2>Department Tickets</h2>
+.filter-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+    box-shadow: 0 2px 8px var(--accent-glow);
+}
 
-        <a href="/" class="btn btn-primary">
-            Back
-        </a>
+.count-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 18px;
+    padding: 0 6px;
+    font-size: 10px;
+    font-weight: 700;
+    background: rgba(255,255,255,0.2);
+    border-radius: 10px;
+}
 
+.filter-btn:not(.active) .count-chip {
+    background: var(--surface3);
+    color: var(--muted);
+}
+
+/* Row animation */
+tbody tr {
+    animation: rowIn 0.35s cubic-bezier(0.16,1,0.3,1) both;
+}
+
+{% for i in range(1, 30) %}
+tbody tr:nth-child({{ i }}) { animation-delay: {{ 0.04 + i * 0.025 }}s; }
+{% endfor %}
+
+@keyframes rowIn {
+    from { opacity: 0; transform: translateX(-6px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+/* Row hide/show transition */
+tbody tr.hidden-row {
+    display: none;
+}
+
+/* Search input */
+.search-wrap {
+    position: relative;
+    flex: 1;
+    max-width: 240px;
+}
+
+.search-input {
+    width: 100%;
+    padding: 8px 14px 8px 36px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 400;
+    outline: none;
+    border-radius: 20px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.search-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-dim);
+}
+
+.search-input::placeholder { color: var(--muted); }
+
+.search-icon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 14px;
+    color: var(--muted);
+    pointer-events: none;
+}
+
+/* Stat pills */
+.stat-pills {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+}
+
+.stat-pill {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 4px 12px;
+    border-radius: 20px;
+    border: 1px solid;
+}
+
+.pill-open   { color: var(--open);     background: rgba(6,182,212,0.08);   border-color: rgba(6,182,212,0.2); }
+.pill-prog   { color: var(--warn);     background: rgba(245,158,11,0.08);  border-color: rgba(245,158,11,0.2); }
+.pill-closed { color: var(--closed);   background: rgba(16,185,129,0.08);  border-color: rgba(16,185,129,0.2); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header animate-in">
+    <div class="page-header-left">
+        <p>{% if role == 'admin' %}All departments{% else %}{{ session.get('department','') }} department{% endif %}</p>
+        <h1>{% if role == 'admin' %}All Tickets{% else %}Department Tickets{% endif %}</h1>
     </div>
+    <div style="display:flex;align-items:center;gap:10px">
+        <div class="stat-pills">
+            <span class="stat-pill pill-open" id="pill-open"></span>
+            <span class="stat-pill pill-prog" id="pill-prog"></span>
+            <span class="stat-pill pill-closed" id="pill-closed"></span>
+        </div>
+        <span style="font-size:13px;color:var(--muted);font-weight:500">{{ tickets|length }} total</span>
+    </div>
+</div>
 
-    <div class="card shadow-lg p-4">
+<div class="filter-bar animate-in" style="animation-delay:0.05s">
+    <button class="filter-btn active" data-filter="all">
+        All <span class="count-chip" id="count-all">{{ tickets|length }}</span>
+    </button>
+    <button class="filter-btn" data-filter="Open">
+        Open <span class="count-chip" id="count-open"></span>
+    </button>
+    <button class="filter-btn" data-filter="In Progress">
+        In Progress <span class="count-chip" id="count-prog"></span>
+    </button>
+    <button class="filter-btn" data-filter="Closed">
+        Closed <span class="count-chip" id="count-closed"></span>
+    </button>
 
-        <table class="table table-striped">
+    <div class="search-wrap" style="margin-left:auto">
+        <span class="search-icon">🔍</span>
+        <input type="text" class="search-input" id="searchInput" placeholder="Search tickets…">
+    </div>
+</div>
 
-            <thead class="table-dark">
+<div class="card animate-in" style="animation-delay:0.09s">
+    {% if tickets %}
+    <div class="table-wrap">
+        <table id="ticketsTable">
+            <thead>
                 <tr>
-                    <th>ID</th>
-                    <th>User</th>
-                    <th>Ticket</th>
+                    <th>#</th>
+                    <th>Employee</th>
+                    {% if role == 'admin' %}<th>Dept</th>{% endif %}
+                    <th>Description</th>
                     <th>Category</th>
+                    <th>Confidence</th>
                     <th>Status</th>
+                    <th>Date</th>
                     <th>Update</th>
                 </tr>
             </thead>
-
             <tbody>
-
-                {% for ticket in tickets %}
-                <tr>
-
-                    <td>{{ ticket[0] }}</td>
-                    <td>{{ ticket[1] }}</td>
-                    <td>{{ ticket[3] }}</td>
-                    <td>{{ ticket[4] }}</td>
-                    <td>{{ ticket[6] }}</td>
-
+                {% for t in tickets %}
+                <tr data-status="{{ t['status'] }}" data-text="{{ t['ticket_text']|lower }} {{ t['employee_name']|lower }}">
+                    <td style="color:var(--muted);font-size:11px;font-weight:600">#{{ t['id'] }}</td>
+                    <td class="primary">{{ t['employee_name'] }}</td>
+                    {% if role == 'admin' %}<td><span class="badge badge-cat">{{ t['department'] }}</span></td>{% endif %}
+                    <td class="ticket-text-cell" title="{{ t['ticket_text'] }}">{{ t['ticket_text'] }}</td>
+                    <td><span class="badge badge-cat">{{ t['category'] }}</span></td>
                     <td>
-
-                        <form action="/update_status/{{ ticket[0] }}" method="POST">
-
-                            <select name="status" class="form-select mb-2">
-
-                                <option>Open</option>
-                                <option>In Progress</option>
-                                <option>Closed</option>
-
-                            </select>
-
-                            <button class="btn btn-success btn-sm">
-                                Update
-                            </button>
-
-                        </form>
-
+                        <div class="conf-wrap">
+                            <div class="conf-bar">
+                                <div class="conf-fill" style="width:{{ t['confidence'] }}%"></div>
+                            </div>
+                            <span class="conf-num">{{ t['confidence'] }}%</span>
+                        </div>
                     </td>
-
+                    <td>
+                        {% set st = t['status'] %}
+                        {% if st == 'Open' %}
+                            <span class="badge badge-open">{{ st }}</span>
+                        {% elif st == 'In Progress' %}
+                            <span class="badge badge-progress">{{ st }}</span>
+                        {% else %}
+                            <span class="badge badge-closed">{{ st }}</span>
+                        {% endif %}
+                    </td>
+                    <td style="font-size:11px;color:var(--muted);font-weight:500">{{ t['created_at'][:10] }}</td>
+                    <td>
+                        <form action="/update_status/{{ t['id'] }}" method="POST" class="status-form">
+                            <select name="status" class="status-select">
+                                <option {% if t['status']=='Open' %}selected{% endif %}>Open</option>
+                                <option {% if t['status']=='In Progress' %}selected{% endif %}>In Progress</option>
+                                <option {% if t['status']=='Closed' %}selected{% endif %}>Closed</option>
+                            </select>
+                            <button type="submit" class="btn btn-ghost btn-sm">Save</button>
+                        </form>
+                    </td>
                 </tr>
                 {% endfor %}
-
             </tbody>
-
         </table>
-
     </div>
-
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-icon">📭</div>
+        <h3>No tickets assigned</h3>
+        <p>Your department has no tickets yet.</p>
+    </div>
+    {% endif %}
 </div>
+{% endblock %}
 
-</body>
-</html>
+{% block scripts %}
+<script>
+const rows = Array.from(document.querySelectorAll('#ticketsTable tbody tr'));
+const counts = { all: rows.length, Open: 0, 'In Progress': 0, Closed: 0 };
+rows.forEach(r => {
+    const s = r.dataset.status;
+    if (counts[s] !== undefined) counts[s]++;
+});
+
+document.getElementById('count-all').textContent     = counts.all;
+document.getElementById('count-open').textContent    = counts['Open'];
+document.getElementById('count-prog').textContent    = counts['In Progress'];
+document.getElementById('count-closed').textContent  = counts['Closed'];
+
+document.getElementById('pill-open').textContent    = `${counts['Open']} open`;
+document.getElementById('pill-prog').textContent    = `${counts['In Progress']} in progress`;
+document.getElementById('pill-closed').textContent  = `${counts['Closed']} closed`;
+
+let currentFilter = 'all';
+let currentSearch = '';
+
+function applyFilters() {
+    rows.forEach(r => {
+        const matchFilter = currentFilter === 'all' || r.dataset.status === currentFilter;
+        const matchSearch = currentSearch === '' || r.dataset.text.includes(currentSearch);
+        r.style.display = (matchFilter && matchSearch) ? '' : 'none';
+    });
+}
+
+document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+        currentFilter = this.dataset.filter;
+        applyFilters();
+    });
+});
+
+document.getElementById('searchInput').addEventListener('input', function() {
+    currentSearch = this.value.toLowerCase().trim();
+    applyFilters();
+});
+</script>
+{% endblock %}

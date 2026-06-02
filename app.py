@@ -1,50 +1,67 @@
-from flask import Flask, render_template, request, redirect, session, flash, jsonify
+import os
+import functools
 import sqlite3
 from datetime import datetime
+from flask import Flask, render_template, request, redirect, session, flash, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
-from DB.queries import authenticate_user
-from classifier import classify_ticket
-
 from classifier import classify_ticket
 
 app = Flask(__name__)
-app.secret_key = "super_secret_key"
+app.secret_key = os.environ.get("SECRET_KEY", os.urandom(24))
 
-DATABASE = "database.db"
+DATABASE = os.environ.get("DATABASE_PATH", "database.db")
 
 
 # =========================
 # DATABASE INITIALIZATION
 # =========================
 
-def init_db():
+def get_db():
     conn = sqlite3.connect(DATABASE)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def init_db():
+    conn = get_db()
     cursor = conn.cursor()
 
-    # USERS TABLE
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE,
-            password TEXT,
-            department TEXT,
-            role TEXT
+            username TEXT UNIQUE NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL,
+            department TEXT NOT NULL,
+            role TEXT NOT NULL DEFAULT 'user',
+            created_at TEXT NOT NULL
         )
     """)
 
-    # TICKETS TABLE
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS tickets (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            employee_name TEXT,
-            department TEXT,
-            ticket_text TEXT,
-            category TEXT,
-            confidence REAL,
-            status TEXT,
-            created_at TEXT
+            user_id INTEGER NOT NULL,
+            employee_name TEXT NOT NULL,
+            department TEXT NOT NULL,
+            ticket_text TEXT NOT NULL,
+            category TEXT NOT NULL,
+            confidence REAL NOT NULL,
+            status TEXT NOT NULL DEFAULT 'Open',
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES users(id)
         )
     """)
+
+    # Seed a default admin if none exists
+    existing = cursor.execute("SELECT id FROM users WHERE role='admin'").fetchone()
+    if not existing:
+        hashed = generate_password_hash("admin123")
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        cursor.execute("""
+            INSERT OR IGNORE INTO users (username, email, password, department, role, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, ("Admin", "admin@company.com", hashed, "IT", "admin", now))
 
     conn.commit()
     conn.close()
@@ -53,340 +70,236 @@ def init_db():
 init_db()
 
 
-@app.route('/')
-def home():
-    return render_template('login.html')
-
-@app.route('/login', methods=['POST'])
-def login():
-    data = request.get_json()
-    email = data.get('email')
-    password = data.get('password')
-
-    print("REQUEST:", data)
-
-    user = authenticate_user(email, password)
-
-    print("AUTH RESULT:", user)
-
-    if user:
-        return jsonify({
-            "success": True,
-            "employee_id": user["employee_id"],
-            "name": user["first_name"],
-            "redirect": "/index"
-        })
-
-    return jsonify({
-        "success": False,
-        "message": "Invalid email or password"
-    }), 401
-
-@app.route('/index')
-def index():
-    return render_template('index.html')
-
-
 # =========================
-# LOGIN REQUIRED DECORATOR
+# AUTH DECORATOR
 # =========================
 
-def login_required(route_function):
+def login_required(f):
+    @functools.wraps(f)
     def wrapper(*args, **kwargs):
         if "user_id" not in session:
             return redirect("/login")
-        return route_function(*args, **kwargs)
+        return f(*args, **kwargs)
+    return wrapper
 
-    wrapper.__name__ = route_function.__name__
+
+def admin_required(f):
+    @functools.wraps(f)
+    def wrapper(*args, **kwargs):
+        if "user_id" not in session:
+            return redirect("/login")
+        if session.get("role") != "admin":
+            return redirect("/")
+        return f(*args, **kwargs)
     return wrapper
 
 
 # =========================
-# REGISTER
+# AUTH ROUTES
 # =========================
+
+@app.route("/")
+def home():
+    if "user_id" in session:
+        return redirect("/dashboard" if session.get("role") == "admin" else "/index")
+    return redirect("/login")
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if "user_id" in session:
+        return redirect("/")
+
+    if request.method == "POST":
+        data = request.get_json(silent=True) or request.form
+        email = (data.get("email") or "").strip().lower()
+        password = (data.get("password") or "").strip()
+
+        conn = get_db()
+        user = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
+        conn.close()
+
+        if user and check_password_hash(user["password"], password):
+            session["user_id"] = user["id"]
+            session["username"] = user["username"]
+            session["email"] = user["email"]
+            session["department"] = user["department"]
+            session["role"] = user["role"]
+
+            if request.is_json:
+                return jsonify({"success": True, "redirect": "/dashboard" if user["role"] == "admin" else "/index"})
+            return redirect("/dashboard" if user["role"] == "admin" else "/index")
+
+        if request.is_json:
+            return jsonify({"success": False, "message": "Invalid email or password"}), 401
+        flash("Invalid email or password", "error")
+
+    return render_template("login.html")
+
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
-
     if request.method == "POST":
-
-        username = request.form["username"]
-        password = request.form["password"]
+        username = request.form["username"].strip()
+        email = request.form["email"].strip().lower()
+        password = request.form["password"].strip()
         department = request.form["department"]
 
-        hashed_password = generate_password_hash(password)
+        if not username or not email or not password or not department:
+            flash("All fields are required.", "error")
+            return render_template("register.html")
 
-        conn = sqlite3.connect(DATABASE)
-        cursor = conn.cursor()
+        hashed = generate_password_hash(password)
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+        conn = get_db()
         try:
-
-            role = "user"
-
-            if username.lower() == "admin":
-                role = "admin"
-
-            cursor.execute("""
-                INSERT INTO users (
-                    username,
-                    password,
-                    department,
-                    role
-                )
-                VALUES (?, ?, ?, ?)
-            """, (
-                username,
-                hashed_password,
-                department,
-                role
-            ))
-
+            conn.execute("""
+                INSERT INTO users (username, email, password, department, role, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (username, email, hashed, department, "user", now))
             conn.commit()
-
-            flash("Registration successful!")
+            flash("Account created! Please log in.", "success")
             return redirect("/login")
-
-        except:
-            flash("Username already exists.")
-
+        except sqlite3.IntegrityError:
+            flash("Email or username already registered.", "error")
         finally:
             conn.close()
 
     return render_template("register.html")
 
 
-# =========================
-# LOGIN
-# =========================
-
-# @app.route("/login", methods=["GET", "POST"])
-# def login():
-
-#     if request.method == "POST":
-
-#         username = request.form["username"]
-#         password = request.form["password"]
-
-#         conn = sqlite3.connect(DATABASE)
-#         cursor = conn.cursor()
-
-#         cursor.execute("""
-#             SELECT * FROM users
-#             WHERE username = ?
-#         """, (username,))
-
-#         user = cursor.fetchone()
-
-#         conn.close()
-
-#         if user and check_password_hash(user[2], password):
-
-#             session["user_id"] = user[0]
-#             session["username"] = user[1]
-#             session["department"] = user[3]
-#             session["role"] = user[4]
-
-#             return redirect("/")
-
-#         flash("Invalid credentials.")
-
-#     return render_template("login.html")
-
-
-# =========================
-# LOGOUT
-# =========================
-
 @app.route("/logout")
 def logout():
-
     session.clear()
-
     return redirect("/login")
 
 
 # =========================
-# HOME PAGE
+# EMPLOYEE ROUTES
 # =========================
 
-# @app.route("/")
-# # @login_required
-# def home():
+@app.route("/index")
+@login_required
+def index():
+    return render_template("index.html",
+                           username=session["username"],
+                           department=session["department"])
 
-#     return render_template(
-#         "index.html",
-#         username=session["username"],
-#         department=session["department"]
-#     )
-
-
-# =========================
-# SUBMIT TICKET
-# =========================
 
 @app.route("/submit", methods=["POST"])
 @login_required
 def submit_ticket():
-
-    employee_name = session["username"]
-    department = session["department"]
-
-    ticket_text = request.form["ticket_text"]
+    ticket_text = request.form.get("ticket_text", "").strip()
+    if not ticket_text:
+        flash("Ticket description cannot be empty.", "error")
+        return redirect("/index")
 
     category, confidence = classify_ticket(ticket_text)
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-    conn = sqlite3.connect(DATABASE)
-    cursor = conn.cursor()
-
-    cursor.execute("""
-        INSERT INTO tickets (
-            employee_name,
-            department,
-            ticket_text,
-            category,
-            confidence,
-            status,
-            created_at
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    """, (
-        employee_name,
-        department,
-        ticket_text,
-        category,
-        confidence,
-        "Open",
-        created_at
-    ))
-
+    conn = get_db()
+    conn.execute("""
+        INSERT INTO tickets (user_id, employee_name, department, ticket_text, category, confidence, status, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """, (session["user_id"], session["username"], session["department"],
+          ticket_text, category, confidence, "Open", now))
     conn.commit()
     conn.close()
 
+    flash(f"Ticket submitted! Classified as: {category} ({confidence}% confidence)", "success")
     return redirect("/history")
 
-
-# =========================
-# USER TICKET HISTORY
-# =========================
 
 @app.route("/history")
 @login_required
 def history():
-
-    conn = sqlite3.connect(DATABASE)
-    cursor = conn.cursor()
-
-    cursor.execute("""
-        SELECT * FROM tickets
-        WHERE employee_name = ?
-        ORDER BY id DESC
-    """, (session["username"],))
-
-    tickets = cursor.fetchall()
-
+    conn = get_db()
+    tickets = conn.execute("""
+        SELECT * FROM tickets WHERE user_id = ? ORDER BY id DESC
+    """, (session["user_id"],)).fetchall()
     conn.close()
-
-    return render_template("history.html", tickets=tickets)
+    return render_template("history.html", tickets=tickets, username=session["username"])
 
 
 # =========================
-# DEPARTMENT TICKETS
+# DEPARTMENT / ADMIN ROUTES
 # =========================
 
 @app.route("/department")
 @login_required
 def department_tickets():
-
-    conn = sqlite3.connect(DATABASE)
-    cursor = conn.cursor()
-
+    conn = get_db()
     if session["role"] == "admin":
-
-        cursor.execute("""
-            SELECT * FROM tickets
-            ORDER BY id DESC
-        """)
-
+        tickets = conn.execute("SELECT * FROM tickets ORDER BY id DESC").fetchall()
     else:
-
-        cursor.execute("""
-            SELECT * FROM tickets
-            WHERE category = ?
-            ORDER BY id DESC
-        """, (session["department"],))
-
-    tickets = cursor.fetchall()
-
+        tickets = conn.execute("""
+            SELECT * FROM tickets WHERE category = ? ORDER BY id DESC
+        """, (session["department"],)).fetchall()
     conn.close()
+    return render_template("department.html", tickets=tickets, username=session["username"], role=session["role"])
 
-    return render_template(
-        "department.html",
-        tickets=tickets
-    )
-
-
-# =========================
-# UPDATE TICKET STATUS
-# =========================
 
 @app.route("/update_status/<int:ticket_id>", methods=["POST"])
 @login_required
 def update_status(ticket_id):
+    new_status = request.form.get("status")
+    valid_statuses = {"Open", "In Progress", "Closed"}
+    if new_status not in valid_statuses:
+        return "Invalid status", 400
 
-    new_status = request.form["status"]
-
-    conn = sqlite3.connect(DATABASE)
-    cursor = conn.cursor()
-
-    cursor.execute("""
-        UPDATE tickets
-        SET status = ?
-        WHERE id = ?
-    """, (
-        new_status,
-        ticket_id
-    ))
-
+    conn = get_db()
+    conn.execute("UPDATE tickets SET status = ? WHERE id = ?", (new_status, ticket_id))
     conn.commit()
     conn.close()
-
     return redirect("/department")
 
 
-# =========================
-# ADMIN DASHBOARD
-# =========================
-
 @app.route("/dashboard")
-@login_required
+@admin_required
 def dashboard():
+    conn = get_db()
+    tickets = conn.execute("SELECT * FROM tickets ORDER BY id DESC").fetchall()
+    total = len(tickets)
+    open_count = sum(1 for t in tickets if t["status"] == "Open")
+    in_progress = sum(1 for t in tickets if t["status"] == "In Progress")
+    closed = sum(1 for t in tickets if t["status"] == "Closed")
 
-    if session["role"] != "admin":
-        return redirect("/")
+    categories = {}
+    for t in tickets:
+        categories[t["category"]] = categories.get(t["category"], 0) + 1
 
-    conn = sqlite3.connect(DATABASE)
-    cursor = conn.cursor()
-
-    cursor.execute("""
-        SELECT * FROM tickets
-        ORDER BY id DESC
-    """)
-
-    tickets = cursor.fetchall()
-
+    users = conn.execute("SELECT COUNT(*) as count FROM users").fetchone()["count"]
     conn.close()
 
-    return render_template(
-        "dashboard.html",
-        tickets=tickets
-    )
+    return render_template("dashboard.html",
+                           tickets=tickets,
+                           total=total,
+                           open_count=open_count,
+                           in_progress=in_progress,
+                           closed=closed,
+                           categories=categories,
+                           users=users,
+                           username=session["username"])
 
 
 # =========================
-# RUN APP
+# API: STATS (JSON)
 # =========================
+
+@app.route("/api/stats")
+@admin_required
+def api_stats():
+    conn = get_db()
+    tickets = conn.execute("SELECT * FROM tickets").fetchall()
+    conn.close()
+    categories = {}
+    statuses = {"Open": 0, "In Progress": 0, "Closed": 0}
+    for t in tickets:
+        categories[t["category"]] = categories.get(t["category"], 0) + 1
+        statuses[t["status"]] = statuses.get(t["status"], 0) + 1
+    return jsonify({"categories": categories, "statuses": statuses, "total": len(tickets)})
+
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=False)

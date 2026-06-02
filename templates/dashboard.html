@@ -1,70 +1,321 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard</title>
+{% extends "base.html" %}
+{% block title %}Admin Dashboard{% endblock %}
 
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-</head>
-<body>
+{% block head %}
+<style>
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+}
 
-<div class="container mt-5">
+.stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 22px 20px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+    transition: transform 0.2s cubic-bezier(0.16,1,0.3,1), box-shadow 0.2s, background 0.35s, border-color 0.35s;
+}
 
-    <div class="dashboard-header d-flex justify-content-between align-items-center mb-4">
-        <h1>Ticket Dashboard</h1>
+.stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
 
-        <a href="/" class="btn btn-primary">
-            Create Ticket
-        </a>
+/* Top accent stripe */
+.stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    border-radius: 14px 14px 0 0;
+}
+
+.stat-card.total::before  { background: linear-gradient(90deg, var(--accent), #60a5fa); }
+.stat-card.open::before   { background: linear-gradient(90deg, var(--open), #67e8f9); }
+.stat-card.progress::before { background: linear-gradient(90deg, var(--warn), #fcd34d); }
+.stat-card.closed::before { background: linear-gradient(90deg, var(--closed), #6ee7b7); }
+
+/* Faint background glow */
+.stat-card.total::after   { content:''; position:absolute; inset:0; background: radial-gradient(ellipse 80% 80% at 100% 0%, var(--accent-dim), transparent); pointer-events:none; }
+.stat-card.open::after    { content:''; position:absolute; inset:0; background: radial-gradient(ellipse 80% 80% at 100% 0%, rgba(6,182,212,0.06), transparent); pointer-events:none; }
+.stat-card.progress::after { content:''; position:absolute; inset:0; background: radial-gradient(ellipse 80% 80% at 100% 0%, rgba(245,158,11,0.06), transparent); pointer-events:none; }
+.stat-card.closed::after  { content:''; position:absolute; inset:0; background: radial-gradient(ellipse 80% 80% at 100% 0%, rgba(16,185,129,0.06), transparent); pointer-events:none; }
+
+.stat-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    margin-bottom: 12px;
+}
+
+.stat-value {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 42px;
+    font-weight: 800;
+    color: var(--text);
+    line-height: 1;
+    letter-spacing: -0.03em;
+    transition: all 0.5s;
+}
+
+.stat-card.open .stat-value   { color: var(--open); }
+.stat-card.progress .stat-value { color: var(--warn); }
+.stat-card.closed .stat-value  { color: var(--closed); }
+
+.stat-sub {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--muted);
+    margin-top: 8px;
+}
+
+/* Dashboard layout */
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 20px;
+}
+
+/* Category bars */
+.cat-bars { display: flex; flex-direction: column; gap: 16px; }
+
+.cat-row { display: flex; flex-direction: column; gap: 7px; }
+
+.cat-row-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.cat-row-name { font-size: 13px; font-weight: 600; color: var(--text2); }
+.cat-row-count { font-size: 12px; font-weight: 500; color: var(--muted); }
+
+.cat-bar-bg {
+    height: 7px;
+    background: var(--surface3);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.cat-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), #60a5fa);
+    border-radius: 10px;
+    width: 0;
+    transition: width 1s cubic-bezier(0.16,1,0.3,1);
+}
+
+/* Recent tickets */
+.recent-list { display: flex; flex-direction: column; }
+
+.recent-item {
+    padding: 13px 0;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    transition: background 0.15s;
+    animation: itemIn 0.4s cubic-bezier(0.16,1,0.3,1) both;
+}
+
+@keyframes itemIn {
+    from { opacity: 0; transform: translateX(-8px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+.recent-item:last-child { border-bottom: none; }
+
+.recent-text {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text2);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.recent-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.recent-meta span { font-size: 11px; color: var(--muted); }
+
+/* Section title */
+.section-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 18px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    letter-spacing: -0.01em;
+}
+
+.section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+}
+
+/* Stagger cards */
+.stats-grid .stat-card:nth-child(1) { animation-delay: 0.04s; }
+.stats-grid .stat-card:nth-child(2) { animation-delay: 0.08s; }
+.stats-grid .stat-card:nth-child(3) { animation-delay: 0.12s; }
+.stats-grid .stat-card:nth-child(4) { animation-delay: 0.16s; }
+
+.stats-grid .stat-card { animation: fadeUp 0.5s cubic-bezier(0.16,1,0.3,1) both; }
+
+@keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Recent item stagger */
+.recent-item:nth-child(1)  { animation-delay: 0.15s; }
+.recent-item:nth-child(2)  { animation-delay: 0.19s; }
+.recent-item:nth-child(3)  { animation-delay: 0.23s; }
+.recent-item:nth-child(4)  { animation-delay: 0.27s; }
+.recent-item:nth-child(5)  { animation-delay: 0.31s; }
+.recent-item:nth-child(6)  { animation-delay: 0.35s; }
+.recent-item:nth-child(7)  { animation-delay: 0.39s; }
+.recent-item:nth-child(8)  { animation-delay: 0.43s; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header animate-in">
+    <div class="page-header-left">
+        <p>Admin overview</p>
+        <h1>Dashboard</h1>
     </div>
-
-    <div class="card shadow-lg p-4">
-
-        <div class="table-responsive">
-
-            <table class="table table-striped table-hover align-middle">
-
-                <thead class="table-dark">
-                    <tr>
-                        <th>ID</th>
-                        <th>Employee</th>
-                        <th>Department</th>
-                        <th>Ticket</th>
-                        <th>Category</th>
-                        <th>Confidence</th>
-                        <th>Created</th>
-                    </tr>
-                </thead>
-
-                <tbody>
-
-                    {% for ticket in tickets %}
-                    <tr>
-                        <td>{{ ticket[0] }}</td>
-                        <td>{{ ticket[1] }}</td>
-                        <td>{{ ticket[2] }}</td>
-                        <td>{{ ticket[3] }}</td>
-                        <td>
-                            <span class="badge bg-success category-badge">
-                                {{ ticket[4] }}
-                            </span>
-                        </td>
-                        <td>{{ ticket[5] }}%</td>
-                        <td>{{ ticket[6] }}</td>
-                    </tr>
-                    {% endfor %}
-
-                </tbody>
-
-            </table>
-
-        </div>
-
-    </div>
-
+    <a href="/department" class="btn btn-ghost">View All Tickets →</a>
 </div>
 
-</body>
-</html>
+<!-- STATS -->
+<div class="stats-grid">
+    <div class="stat-card total">
+        <p class="stat-label">Total Tickets</p>
+        <p class="stat-value" data-target="{{ total }}">0</p>
+        <p class="stat-sub">{{ users }} registered users</p>
+    </div>
+    <div class="stat-card open">
+        <p class="stat-label">Open</p>
+        <p class="stat-value" data-target="{{ open_count }}">0</p>
+        <p class="stat-sub">Awaiting action</p>
+    </div>
+    <div class="stat-card progress">
+        <p class="stat-label">In Progress</p>
+        <p class="stat-value" data-target="{{ in_progress }}">0</p>
+        <p class="stat-sub">Being handled</p>
+    </div>
+    <div class="stat-card closed">
+        <p class="stat-label">Closed</p>
+        <p class="stat-value" data-target="{{ closed }}">0</p>
+        <p class="stat-sub">Resolved</p>
+    </div>
+</div>
+
+<div class="dashboard-grid">
+    <!-- CATEGORY BREAKDOWN -->
+    <div class="animate-in" style="animation-delay:0.12s">
+        <div class="card">
+            <p class="section-title">Tickets by Category</p>
+            {% if categories %}
+            <div class="cat-bars">
+                {% for cat, count in categories.items()|sort(attribute='1', reverse=True) %}
+                <div class="cat-row">
+                    <div class="cat-row-header">
+                        <span class="cat-row-name">{{ cat }}</span>
+                        <span class="cat-row-count">{{ count }} ticket{{ 's' if count != 1 }}</span>
+                    </div>
+                    <div class="cat-bar-bg">
+                        <div class="cat-bar-fill" data-width="{% if total > 0 %}{{ (count / total * 100)|round(1) }}{% else %}0{% endif %}"></div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p style="font-size:13px;color:var(--muted)">No data yet.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- RECENT TICKETS -->
+    <div class="animate-in" style="animation-delay:0.16s">
+        <div class="card">
+            <p class="section-title">Recent Tickets</p>
+            {% if tickets %}
+            <div class="recent-list">
+                {% for t in tickets[:8] %}
+                <div class="recent-item">
+                    <span class="recent-text">{{ t['ticket_text'] }}</span>
+                    <div class="recent-meta">
+                        <span class="badge badge-cat" style="font-size:10px;padding:3px 8px">{{ t['category'] }}</span>
+                        {% set st = t['status'] %}
+                        {% if st == 'Open' %}
+                            <span class="badge badge-open" style="font-size:10px;padding:3px 8px">{{ st }}</span>
+                        {% elif st == 'In Progress' %}
+                            <span class="badge badge-progress" style="font-size:10px;padding:3px 8px">{{ st }}</span>
+                        {% else %}
+                            <span class="badge badge-closed" style="font-size:10px;padding:3px 8px">{{ st }}</span>
+                        {% endif %}
+                        <span>{{ t['employee_name'] }}</span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="empty-state" style="padding:32px 0">
+                <div class="empty-icon">📊</div>
+                <h3>No tickets yet</h3>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+/* Animate stat counters */
+function animateCount(el, target, duration = 900) {
+    const start = performance.now();
+    const update = (now) => {
+        const progress = Math.min((now - start) / duration, 1);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        el.textContent = Math.round(eased * target);
+        if (progress < 1) requestAnimationFrame(update);
+    };
+    requestAnimationFrame(update);
+}
+
+/* Animate bars */
+function animateBars() {
+    document.querySelectorAll('.cat-bar-fill').forEach((bar, i) => {
+        const w = bar.dataset.width;
+        setTimeout(() => { bar.style.width = w + '%'; }, 200 + i * 80);
+    });
+}
+
+/* On load */
+window.addEventListener('load', () => {
+    document.querySelectorAll('.stat-value[data-target]').forEach((el, i) => {
+        const target = parseInt(el.dataset.target, 10);
+        setTimeout(() => animateCount(el, target, 800), 300 + i * 80);
+    });
+    animateBars();
+});
+</script>
+{% endblock %}

@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>STMS — {% block title %}{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            /* LIGHT THEME */
+            --bg:          #f0f4fc;
+            --surface:     #ffffff;
+            --surface2:    #f7f9fe;
+            --surface3:    #eef2fb;
+            --border:      #dde3f0;
+            --border2:     #c8d2e8;
+            --accent:      #2563eb;
+            --accent-light:#dbeafe;
+            --accent-dim:  rgba(37,99,235,0.08);
+            --accent-glow: rgba(37,99,235,0.18);
+            --text:        #0f172a;
+            --text2:       #475569;
+            --muted:       #94a3b8;
+            --error:       #ef4444;
+            --warn:        #f59e0b;
+            --info:        #06b6d4;
+            --open:        #06b6d4;
+            --progress:    #f59e0b;
+            --closed:      #10b981;
+            --nav-blur:    rgba(255,255,255,0.85);
+            --shadow-sm:   0 1px 3px rgba(15,23,42,0.06), 0 1px 2px rgba(15,23,42,0.04);
+            --shadow-md:   0 4px 16px rgba(15,23,42,0.08), 0 2px 4px rgba(15,23,42,0.04);
+            --shadow-lg:   0 12px 40px rgba(15,23,42,0.1), 0 4px 8px rgba(15,23,42,0.05);
+        }
+
+        [data-theme="dark"] {
+            --bg:          #080b12;
+            --surface:     #0e1219;
+            --surface2:    #141922;
+            --surface3:    #1a2130;
+            --border:      #1e2740;
+            --border2:     #253050;
+            --accent:      #3b82f6;
+            --accent-light:#1e3a5f;
+            --accent-dim:  rgba(59,130,246,0.1);
+            --accent-glow: rgba(59,130,246,0.22);
+            --text:        #e2e8f8;
+            --text2:       #8896b3;
+            --muted:       #3d4d6a;
+            --error:       #f87171;
+            --warn:        #fbbf24;
+            --info:        #22d3ee;
+            --open:        #22d3ee;
+            --progress:    #fbbf24;
+            --closed:      #34d399;
+            --nav-blur:    rgba(8,11,18,0.88);
+            --shadow-sm:   0 1px 3px rgba(0,0,0,0.3);
+            --shadow-md:   0 4px 16px rgba(0,0,0,0.4);
+            --shadow-lg:   0 12px 40px rgba(0,0,0,0.5);
+        }
+
+        html, body { height: 100%; }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 14px;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            transition: background 0.35s ease, color 0.35s ease;
+        }
+
+        /* ─── NAV ─── */
+        nav {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 28px;
+            height: 62px;
+            background: var(--nav-blur);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 200;
+            box-shadow: var(--shadow-sm);
+            transition: background 0.35s ease, border-color 0.35s ease;
+        }
+
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-decoration: none;
+        }
+
+        .nav-logo {
+            width: 34px;
+            height: 34px;
+            background: var(--accent);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-weight: 800;
+            font-size: 13px;
+            color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px var(--accent-glow);
+            transition: box-shadow 0.2s;
+        }
+
+        .nav-brand:hover .nav-logo { box-shadow: 0 4px 16px var(--accent-glow); }
+
+        .nav-title {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-weight: 700;
+            font-size: 15px;
+            color: var(--text);
+            letter-spacing: -0.01em;
+        }
+
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+        }
+
+        .nav-link {
+            padding: 7px 14px;
+            color: var(--text2);
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 500;
+            border-radius: 8px;
+            transition: color 0.2s, background 0.2s;
+            position: relative;
+        }
+
+        .nav-link:hover { color: var(--text); background: var(--surface3); }
+
+        .nav-link.active {
+            color: var(--accent);
+            background: var(--accent-dim);
+            font-weight: 600;
+        }
+
+        .nav-right {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .nav-user {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            background: var(--surface3);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            font-size: 12px;
+            color: var(--text2);
+            font-weight: 500;
+        }
+
+        .nav-user-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--closed);
+            box-shadow: 0 0 6px var(--closed);
+            animation: blink 2.5s ease-in-out infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        .nav-user strong { color: var(--text); }
+        .nav-sep { color: var(--muted); }
+
+        .logout-btn {
+            padding: 7px 16px;
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text2);
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            border-radius: 8px;
+            transition: border-color 0.2s, color 0.2s, background 0.2s;
+        }
+
+        .logout-btn:hover {
+            border-color: var(--error);
+            color: var(--error);
+            background: rgba(239,68,68,0.06);
+        }
+
+        /* ─── THEME TOGGLE ─── */
+        .theme-toggle {
+            width: 44px;
+            height: 24px;
+            background: var(--surface3);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            cursor: pointer;
+            position: relative;
+            transition: background 0.3s, border-color 0.3s;
+            flex-shrink: 0;
+        }
+
+        .theme-toggle:hover { border-color: var(--accent); }
+
+        .theme-toggle-knob {
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: var(--accent);
+            box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+            transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1), background 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 9px;
+        }
+
+        [data-theme="dark"] .theme-toggle-knob {
+            transform: translateX(20px);
+        }
+
+        .theme-toggle-icon { line-height: 1; }
+
+        /* ─── MAIN ─── */
+        main {
+            flex: 1;
+            padding: 32px;
+            max-width: 1440px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        /* ─── FLASH ─── */
+        .flash-container { margin-bottom: 20px; }
+
+        .flash {
+            padding: 13px 18px;
+            font-size: 13px;
+            font-weight: 500;
+            margin-bottom: 8px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: flashIn 0.4s cubic-bezier(0.16,1,0.3,1) both;
+        }
+
+        @keyframes flashIn {
+            from { opacity: 0; transform: translateY(-8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .flash::before {
+            content: '';
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: currentColor;
+            flex-shrink: 0;
+        }
+
+        .flash-error {
+            background: rgba(239,68,68,0.08);
+            border: 1px solid rgba(239,68,68,0.2);
+            color: var(--error);
+        }
+
+        .flash-success {
+            background: rgba(16,185,129,0.08);
+            border: 1px solid rgba(16,185,129,0.2);
+            color: var(--closed);
+        }
+
+        /* ─── PAGE HEADER ─── */
+        .page-header {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+            margin-bottom: 28px;
+            padding-bottom: 22px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .page-header-left p {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 6px;
+        }
+
+        .page-header-left h1 {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 28px;
+            font-weight: 800;
+            color: var(--text);
+            letter-spacing: -0.02em;
+        }
+
+        /* ─── BUTTONS ─── */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            padding: 10px 20px;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-weight: 600;
+            font-size: 13px;
+            text-decoration: none;
+            cursor: pointer;
+            border: none;
+            border-radius: 10px;
+            transition: all 0.2s cubic-bezier(0.16,1,0.3,1);
+            letter-spacing: -0.01em;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: #fff;
+            box-shadow: 0 2px 8px var(--accent-glow);
+        }
+
+        .btn-primary:hover {
+            box-shadow: 0 6px 20px var(--accent-glow);
+            transform: translateY(-1px);
+            filter: brightness(1.07);
+        }
+
+        .btn-primary:active { transform: translateY(0); }
+
+        .btn-ghost {
+            background: var(--surface);
+            color: var(--text2);
+            border: 1px solid var(--border);
+        }
+
+        .btn-ghost:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+            background: var(--accent-dim);
+        }
+
+        .btn-sm { padding: 7px 14px; font-size: 12px; }
+
+        .btn-danger {
+            background: rgba(239,68,68,0.08);
+            color: var(--error);
+            border: 1px solid rgba(239,68,68,0.2);
+        }
+
+        .btn-danger:hover { background: rgba(239,68,68,0.15); }
+
+        /* ─── CARDS ─── */
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 24px;
+            box-shadow: var(--shadow-sm);
+            transition: background 0.35s, border-color 0.35s;
+        }
+
+        /* ─── TABLE ─── */
+        .table-wrap { overflow-x: auto; border-radius: 8px; }
+
+        table { width: 100%; border-collapse: collapse; }
+
+        thead tr { border-bottom: 1px solid var(--border); }
+
+        thead th {
+            padding: 11px 16px;
+            text-align: left;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            color: var(--muted);
+            font-weight: 600;
+        }
+
+        tbody tr {
+            border-bottom: 1px solid var(--border);
+            transition: background 0.15s;
+        }
+
+        tbody tr:last-child { border-bottom: none; }
+
+        tbody tr:hover { background: var(--surface3); }
+
+        tbody td {
+            padding: 14px 16px;
+            font-size: 13px;
+            color: var(--text2);
+        }
+
+        tbody td.primary { color: var(--text); font-weight: 500; }
+
+        .ticket-text-cell {
+            max-width: 280px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /* ─── BADGES ─── */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 10px;
+            font-size: 11px;
+            font-weight: 600;
+            border-radius: 20px;
+        }
+
+        .badge::before {
+            content: '';
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+
+        .badge-open {
+            color: var(--open);
+            background: rgba(6,182,212,0.1);
+            border: 1px solid rgba(6,182,212,0.2);
+        }
+
+        [data-theme="dark"] .badge-open { background: rgba(34,211,238,0.1); }
+
+        .badge-progress {
+            color: var(--warn);
+            background: rgba(245,158,11,0.1);
+            border: 1px solid rgba(245,158,11,0.2);
+        }
+
+        .badge-closed {
+            color: var(--closed);
+            background: rgba(16,185,129,0.1);
+            border: 1px solid rgba(16,185,129,0.2);
+        }
+
+        .badge-cat {
+            color: var(--text2);
+            background: var(--surface3);
+            border: 1px solid var(--border);
+            font-size: 11px;
+            font-weight: 500;
+        }
+
+        .badge-cat::before { display: none; }
+
+        /* ─── CONFIDENCE BAR ─── */
+        .conf-wrap { display: flex; align-items: center; gap: 8px; }
+
+        .conf-bar {
+            width: 56px;
+            height: 5px;
+            background: var(--surface3);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .conf-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent), #60a5fa);
+            border-radius: 10px;
+            transition: width 0.8s cubic-bezier(0.16,1,0.3,1);
+        }
+
+        .conf-num { font-size: 11px; color: var(--muted); font-weight: 500; }
+
+        /* ─── STATUS SELECT ─── */
+        .status-select {
+            padding: 6px 10px;
+            background: var(--surface3);
+            border: 1px solid var(--border);
+            color: var(--text);
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 12px;
+            font-weight: 500;
+            outline: none;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: border-color 0.2s;
+        }
+
+        .status-select:focus { border-color: var(--accent); }
+
+        .status-form { display: flex; align-items: center; gap: 8px; }
+
+        /* ─── EMPTY STATE ─── */
+        .empty-state {
+            text-align: center;
+            padding: 64px 32px;
+        }
+
+        .empty-icon { font-size: 44px; margin-bottom: 16px; opacity: 0.4; }
+
+        .empty-state h3 {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text2);
+            margin-bottom: 8px;
+        }
+
+        .empty-state p { font-size: 13px; color: var(--muted); }
+
+        /* ─── ANIMATIONS ─── */
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(16px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes scaleIn {
+            from { opacity: 0; transform: scale(0.97) translateY(8px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+
+        .animate-in {
+            animation: fadeUp 0.5s cubic-bezier(0.16,1,0.3,1) both;
+        }
+
+        /* ─── PAGE TRANSITION ─── */
+        .page-enter {
+            animation: scaleIn 0.4s cubic-bezier(0.16,1,0.3,1) both;
+        }
+
+        /* ─── SCROLLBAR ─── */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+    </style>
+    {% block head %}{% endblock %}
+</head>
+<body>
+
+<nav>
+    <a href="/" class="nav-brand">
+        <div class="nav-logo">ST</div>
+        <span class="nav-title">Smart Tickets</span>
+    </a>
+
+    <div class="nav-links">
+        {% if session.get('role') == 'admin' %}
+            <a href="/dashboard" class="nav-link {% if request.path == '/dashboard' %}active{% endif %}">Dashboard</a>
+            <a href="/department" class="nav-link {% if request.path == '/department' %}active{% endif %}">All Tickets</a>
+        {% else %}
+            <a href="/index" class="nav-link {% if request.path == '/index' %}active{% endif %}">Submit</a>
+            <a href="/history" class="nav-link {% if request.path == '/history' %}active{% endif %}">My Tickets</a>
+            <a href="/department" class="nav-link {% if request.path == '/department' %}active{% endif %}">Department</a>
+        {% endif %}
+    </div>
+
+    <div class="nav-right">
+        <div class="nav-user">
+            <div class="nav-user-dot"></div>
+            <strong>{{ username }}</strong>
+            <span class="nav-sep">·</span>
+            <span>{{ session.get('department','') }}</span>
+        </div>
+
+        <!-- DARK MODE TOGGLE -->
+        <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme" title="Toggle dark/light mode">
+            <div class="theme-toggle-knob">
+                <span class="theme-toggle-icon" id="themeIcon">☀️</span>
+            </div>
+        </button>
+
+        <a href="/logout" class="logout-btn">Logout</a>
+    </div>
+</nav>
+
+<main>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div class="flash-container">
+            {% for cat, msg in messages %}
+                <div class="flash flash-{{ cat }}">{{ msg }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    {% endwith %}
+
+    <div class="page-enter">
+        {% block content %}{% endblock %}
+    </div>
+</main>
+
+{% block scripts %}{% endblock %}
+
+<script>
+    /* ─── THEME TOGGLE LOGIC ─── */
+    const html = document.documentElement;
+    const toggleBtn = document.getElementById('themeToggle');
+    const themeIcon = document.getElementById('themeIcon');
+
+    const saved = localStorage.getItem('stms-theme') || 'light';
+    html.setAttribute('data-theme', saved);
+    themeIcon.textContent = saved === 'dark' ? '🌙' : '☀️';
+
+    toggleBtn.addEventListener('click', () => {
+        const current = html.getAttribute('data-theme');
+        const next = current === 'light' ? 'dark' : 'light';
+        html.setAttribute('data-theme', next);
+        localStorage.setItem('stms-theme', next);
+        themeIcon.textContent = next === 'dark' ? '🌙' : '☀️';
+    });
+</script>
+</body>
+</html>

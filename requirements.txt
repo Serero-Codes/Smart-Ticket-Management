@@ -1,5 +1,7 @@
-Flask
+Flask==3.0.3
+Werkzeug==3.0.3
 pandas
 scikit-learn
 joblib
-Werkzeug==3.0.3
+python-dotenv
+gunicorn

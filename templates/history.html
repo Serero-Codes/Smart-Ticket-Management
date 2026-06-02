@@ -1,62 +1,141 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Tickets</title>
+{% extends "base.html" %}
+{% block title %}My Tickets{% endblock %}
 
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-</head>
-<body>
+{% block head %}
+<style>
+/* Summary chips at top */
+.history-summary {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
 
-<div class="container mt-5">
+.summary-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    border: 1px solid;
+}
 
-    <div class="d-flex justify-content-between mb-4">
+.chip-total  { color: var(--text2);     background: var(--surface3);          border-color: var(--border); }
+.chip-open   { color: var(--open);      background: rgba(6,182,212,0.08);     border-color: rgba(6,182,212,0.2); }
+.chip-prog   { color: var(--warn);      background: rgba(245,158,11,0.08);    border-color: rgba(245,158,11,0.2); }
+.chip-closed { color: var(--closed);    background: rgba(16,185,129,0.08);    border-color: rgba(16,185,129,0.2); }
 
-        <h2>My Ticket History</h2>
+.chip-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+}
 
-        <a href="/" class="btn btn-primary">
-            Back
-        </a>
+/* Table row animations */
+tbody tr { animation: rowSlide 0.4s cubic-bezier(0.16,1,0.3,1) both; }
+{% for i in range(1, 40) %}
+tbody tr:nth-child({{ i }}) { animation-delay: {{ 0.05 + i * 0.03 }}s; }
+{% endfor %}
 
+@keyframes rowSlide {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header animate-in">
+    <div class="page-header-left">
+        <p>Personal history</p>
+        <h1>My Tickets</h1>
     </div>
-
-    <div class="card shadow-lg p-4">
-
-        <table class="table table-striped">
-
-            <thead class="table-dark">
-                <tr>
-                    <th>ID</th>
-                    <th>Ticket</th>
-                    <th>Category</th>
-                    <th>Status</th>
-                    <th>Created</th>
-                </tr>
-            </thead>
-
-            <tbody>
-
-                {% for ticket in tickets %}
-                <tr>
-
-                    <td>{{ ticket[0] }}</td>
-                    <td>{{ ticket[3] }}</td>
-                    <td>{{ ticket[4] }}</td>
-                    <td>{{ ticket[6] }}</td>
-                    <td>{{ ticket[7] }}</td>
-
-                </tr>
-                {% endfor %}
-
-            </tbody>
-
-        </table>
-
-    </div>
-
+    <a href="/index" class="btn btn-primary">+ New Ticket</a>
 </div>
 
-</body>
-</html>
+{% if tickets %}
+<div class="history-summary animate-in" style="animation-delay:0.04s">
+    <div class="summary-chip chip-total">
+        <div class="chip-dot"></div>
+        {{ tickets|length }} total
+    </div>
+    {% set open_cnt = tickets|selectattr('status','equalto','Open')|list|length %}
+    {% set prog_cnt = tickets|selectattr('status','equalto','In Progress')|list|length %}
+    {% set done_cnt = tickets|selectattr('status','equalto','Closed')|list|length %}
+    {% if open_cnt > 0 %}
+    <div class="summary-chip chip-open">
+        <div class="chip-dot"></div>
+        {{ open_cnt }} open
+    </div>
+    {% endif %}
+    {% if prog_cnt > 0 %}
+    <div class="summary-chip chip-prog">
+        <div class="chip-dot"></div>
+        {{ prog_cnt }} in progress
+    </div>
+    {% endif %}
+    {% if done_cnt > 0 %}
+    <div class="summary-chip chip-closed">
+        <div class="chip-dot"></div>
+        {{ done_cnt }} closed
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+<div class="card animate-in" style="animation-delay:0.08s">
+    {% if tickets %}
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Description</th>
+                    <th>Category</th>
+                    <th>Confidence</th>
+                    <th>Status</th>
+                    <th>Submitted</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in tickets %}
+                <tr>
+                    <td style="color:var(--muted);font-size:11px;font-weight:600">#{{ t['id'] }}</td>
+                    <td class="ticket-text-cell primary" title="{{ t['ticket_text'] }}">{{ t['ticket_text'] }}</td>
+                    <td><span class="badge badge-cat">{{ t['category'] }}</span></td>
+                    <td>
+                        <div class="conf-wrap">
+                            <div class="conf-bar">
+                                <div class="conf-fill" style="width:{{ t['confidence'] }}%"></div>
+                            </div>
+                            <span class="conf-num">{{ t['confidence'] }}%</span>
+                        </div>
+                    </td>
+                    <td>
+                        {% set st = t['status'] %}
+                        {% if st == 'Open' %}
+                            <span class="badge badge-open">{{ st }}</span>
+                        {% elif st == 'In Progress' %}
+                            <span class="badge badge-progress">{{ st }}</span>
+                        {% else %}
+                            <span class="badge badge-closed">{{ st }}</span>
+                        {% endif %}
+                    </td>
+                    <td style="font-size:12px;color:var(--muted);font-weight:500">{{ t['created_at'][:16] }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-icon">🎫</div>
+        <h3>No tickets yet</h3>
+        <p>Submit your first support ticket to get started.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

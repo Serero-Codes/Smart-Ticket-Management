@@ -1,210 +1,663 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart Ticket Management - Login</title>
-
+    <title>STMS — Login</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
     <style>
-        *{
-            margin:0;
-            padding:0;
-            box-sizing:border-box;
-            font-family:Segoe UI, sans-serif;
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --bg:          #f0f4fc;
+            --surface:     #ffffff;
+            --surface2:    #f7f9fe;
+            --surface3:    #eef2fb;
+            --border:      #dde3f0;
+            --accent:      #2563eb;
+            --accent-dim:  rgba(37,99,235,0.08);
+            --accent-glow: rgba(37,99,235,0.22);
+            --text:        #0f172a;
+            --text2:       #475569;
+            --muted:       #94a3b8;
+            --error:       #ef4444;
+            --success:     #10b981;
         }
 
-        body{
-            min-height:100vh;
-            display:flex;
-            justify-content:center;
-            align-items:center;
-            background:#f4f6f9;
+        [data-theme="dark"] {
+            --bg:          #080b12;
+            --surface:     #0e1219;
+            --surface2:    #141922;
+            --surface3:    #1a2130;
+            --border:      #1e2740;
+            --accent:      #3b82f6;
+            --accent-dim:  rgba(59,130,246,0.1);
+            --accent-glow: rgba(59,130,246,0.22);
+            --text:        #e2e8f8;
+            --text2:       #8896b3;
+            --muted:       #3d4d6a;
+            --error:       #f87171;
+            --success:     #34d399;
         }
 
-        .login-container{
-            width:100%;
-            max-width:450px;
-            padding:20px;
+        body {
+            min-height: 100vh;
+            background: var(--bg);
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            overflow: hidden;
+            transition: background 0.35s ease;
         }
 
-        .login-card{
-            background:white;
-            padding:40px;
-            border-radius:15px;
-            box-shadow:0 4px 15px rgba(0,0,0,0.1);
+        /* ─── LEFT PANEL ─── */
+        .left {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 48px;
+            background: linear-gradient(145deg, #1d4ed8 0%, #1e40af 40%, #1e3a8a 100%);
+            overflow: hidden;
         }
 
-        .login-card h1{
-            text-align:center;
-            margin-bottom:10px;
+        [data-theme="dark"] .left {
+            background: linear-gradient(145deg, #0f172a 0%, #0c1a3d 40%, #080b12 100%);
         }
 
-        .subtitle{
-            text-align:center;
-            color:#666;
-            margin-bottom:30px;
+        /* Animated mesh background */
+        .mesh-bg {
+            position: absolute;
+            inset: 0;
+            overflow: hidden;
         }
 
-        .input-group{
-            margin-bottom:20px;
+        .mesh-circle {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(60px);
         }
 
-        .input-group label{
-            display:block;
-            margin-bottom:8px;
-            font-weight:600;
+        .mesh-circle:nth-child(1) {
+            width: 400px; height: 400px;
+            background: rgba(96,165,250,0.3);
+            top: -100px; right: -80px;
+            animation: float1 8s ease-in-out infinite;
         }
 
-        .input-group input{
-            width:100%;
-            padding:12px;
-            border:1px solid #ccc;
-            border-radius:8px;
+        .mesh-circle:nth-child(2) {
+            width: 300px; height: 300px;
+            background: rgba(147,197,253,0.2);
+            bottom: -60px; left: -60px;
+            animation: float2 10s ease-in-out infinite;
         }
 
-        .login-btn{
-            width:100%;
-            padding:12px;
-            border:none;
-            border-radius:8px;
-            background:#2563eb;
-            color:white;
-            cursor:pointer;
-            font-size:16px;
+        .mesh-circle:nth-child(3) {
+            width: 200px; height: 200px;
+            background: rgba(255,255,255,0.08);
+            top: 40%; left: 30%;
+            animation: float3 7s ease-in-out infinite;
         }
 
-        .login-btn:hover{
-            background:#1d4ed8;
+        @keyframes float1 {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            50% { transform: translate(-20px, 30px) scale(1.1); }
         }
 
-        #message{
-            text-align:center;
-            margin-top:15px;
-            font-weight:bold;
+        @keyframes float2 {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            50% { transform: translate(30px, -20px) scale(1.08); }
         }
 
-        .success{
-            color:green;
+        @keyframes float3 {
+            0%, 100% { transform: translate(0, 0); }
+            50% { transform: translate(-15px, -25px); }
         }
 
-        .error{
-            color:red;
+        /* Grid overlay */
+        .grid-overlay {
+            position: absolute;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px);
+            background-size: 48px 48px;
+        }
+
+        /* Floating ticket cards */
+        .float-cards {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+        }
+
+        .float-card {
+            position: absolute;
+            background: rgba(255,255,255,0.07);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 12px;
+            backdrop-filter: blur(4px);
+            padding: 14px 18px;
+        }
+
+        .float-card:nth-child(1) {
+            top: 22%; right: 8%;
+            width: 180px;
+            animation: cardFloat1 6s ease-in-out infinite;
+        }
+
+        .float-card:nth-child(2) {
+            top: 50%; right: 14%;
+            width: 160px;
+            animation: cardFloat2 7s ease-in-out infinite 1s;
+        }
+
+        .float-card:nth-child(3) {
+            top: 72%; right: 4%;
+            width: 170px;
+            animation: cardFloat1 8s ease-in-out infinite 0.5s;
+        }
+
+        @keyframes cardFloat1 {
+            0%, 100% { transform: translateY(0px) rotate(-1deg); }
+            50% { transform: translateY(-12px) rotate(0.5deg); }
+        }
+
+        @keyframes cardFloat2 {
+            0%, 100% { transform: translateY(0px) rotate(1deg); }
+            50% { transform: translateY(-16px) rotate(-0.5deg); }
+        }
+
+        .float-card-label {
+            font-size: 9px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            color: rgba(255,255,255,0.5);
+            margin-bottom: 6px;
+        }
+
+        .float-card-text {
+            font-size: 11px;
+            color: rgba(255,255,255,0.8);
+            font-weight: 500;
+            line-height: 1.5;
+        }
+
+        .float-card-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            margin-top: 8px;
+            padding: 3px 8px;
+            border-radius: 20px;
+            font-size: 9px;
+            font-weight: 700;
+        }
+
+        .badge-cyan { background: rgba(34,211,238,0.2); color: #67e8f9; }
+        .badge-amber { background: rgba(251,191,36,0.2); color: #fcd34d; }
+        .badge-green { background: rgba(52,211,153,0.2); color: #6ee7b7; }
+
+        .brand-z {
+            position: relative;
+            z-index: 2;
+        }
+
+        .logo-mark {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-box {
+            width: 38px;
+            height: 38px;
+            background: rgba(255,255,255,0.15);
+            border: 1px solid rgba(255,255,255,0.25);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-weight: 800;
+            font-size: 15px;
+            color: #fff;
+            backdrop-filter: blur(8px);
+        }
+
+        .logo-text {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-weight: 700;
+            font-size: 14px;
+            color: rgba(255,255,255,0.9);
+            letter-spacing: -0.01em;
+        }
+
+        .hero-text {
+            position: relative;
+            z-index: 2;
+        }
+
+        .hero-text h1 {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: clamp(2.4rem, 4vw, 3.6rem);
+            font-weight: 800;
+            color: #fff;
+            line-height: 1.08;
+            margin-bottom: 20px;
+            letter-spacing: -0.03em;
+        }
+
+        .hero-text h1 em {
+            font-style: normal;
+            color: #93c5fd;
+        }
+
+        .hero-text p {
+            color: rgba(255,255,255,0.6);
+            font-size: 14px;
+            line-height: 1.75;
+            max-width: 320px;
+        }
+
+        .stats-row {
+            position: relative;
+            z-index: 2;
+            display: flex;
+            gap: 36px;
+        }
+
+        .stat { display: flex; flex-direction: column; gap: 4px; }
+
+        .stat-num {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 28px;
+            font-weight: 800;
+            color: #fff;
+        }
+
+        .stat-label {
+            font-size: 11px;
+            font-weight: 500;
+            color: rgba(255,255,255,0.5);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        /* ─── RIGHT PANEL ─── */
+        .right {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 48px;
+            background: var(--surface);
+        }
+
+        .form-wrap {
+            width: 100%;
+            max-width: 400px;
+            animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(28px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Theme toggle on login page */
+        .login-theme-row {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 40px;
+        }
+
+        .theme-toggle {
+            width: 44px;
+            height: 24px;
+            background: var(--surface3);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            cursor: pointer;
+            position: relative;
+            transition: background 0.3s, border-color 0.3s;
+        }
+
+        .theme-toggle:hover { border-color: var(--accent); }
+
+        .theme-toggle-knob {
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: var(--accent);
+            box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+            transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 9px;
+        }
+
+        [data-theme="dark"] .theme-toggle-knob { transform: translateX(20px); }
+
+        .form-header { margin-bottom: 36px; }
+
+        .form-header p {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 8px;
+        }
+
+        .form-header h2 {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 26px;
+            font-weight: 800;
+            color: var(--text);
+            letter-spacing: -0.02em;
+        }
+
+        .field { margin-bottom: 20px; }
+
+        .field label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text2);
+            margin-bottom: 8px;
+        }
+
+        .field input {
+            width: 100%;
+            padding: 13px 16px;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            color: var(--text);
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 14px;
+            font-weight: 400;
+            outline: none;
+            border-radius: 10px;
+            transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+        }
+
+        .field input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-dim);
+            background: var(--surface);
+        }
+
+        .field input::placeholder { color: var(--muted); }
+
+        .submit-btn {
+            width: 100%;
+            padding: 14px;
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-weight: 700;
+            font-size: 14px;
+            letter-spacing: -0.01em;
+            cursor: pointer;
+            border-radius: 10px;
+            transition: transform 0.2s cubic-bezier(0.16,1,0.3,1), box-shadow 0.2s;
+            margin-top: 8px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .submit-btn::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(to right, transparent, rgba(255,255,255,0.1), transparent);
+            transform: translateX(-100%);
+            transition: transform 0.5s ease;
+        }
+
+        .submit-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 24px var(--accent-glow);
+        }
+
+        .submit-btn:hover::before { transform: translateX(100%); }
+        .submit-btn:active { transform: translateY(0); }
+        .submit-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+        .msg {
+            margin-top: 14px;
+            padding: 12px 16px;
+            font-size: 13px;
+            border-radius: 10px;
+            display: none;
+            align-items: center;
+            gap: 8px;
+            font-weight: 500;
+        }
+
+        .msg.error {
+            background: rgba(239,68,68,0.08);
+            border: 1px solid rgba(239,68,68,0.2);
+            color: var(--error);
+            display: flex;
+        }
+
+        .msg.success {
+            background: rgba(16,185,129,0.08);
+            border: 1px solid rgba(16,185,129,0.2);
+            color: var(--success);
+            display: flex;
+        }
+
+        .flash-msg {
+            padding: 12px 16px;
+            font-size: 13px;
+            font-weight: 500;
+            margin-bottom: 16px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .flash-error {
+            background: rgba(239,68,68,0.08);
+            border: 1px solid rgba(239,68,68,0.2);
+            color: var(--error);
+        }
+
+        .flash-success {
+            background: rgba(16,185,129,0.08);
+            border: 1px solid rgba(16,185,129,0.2);
+            color: var(--success);
+        }
+
+        .form-footer {
+            margin-top: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding-top: 22px;
+            border-top: 1px solid var(--border);
+        }
+
+        .form-footer span { font-size: 13px; color: var(--muted); }
+
+        .form-footer a {
+            color: var(--accent);
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 600;
+            transition: opacity 0.2s;
+        }
+
+        .form-footer a:hover { opacity: 0.75; }
+
+        @media (max-width: 768px) {
+            body { grid-template-columns: 1fr; }
+            .left { display: none; }
         }
     </style>
 </head>
 <body>
 
-<div class="login-container">
-    <div class="login-card">
+<!-- LEFT: Hero panel -->
+<div class="left">
+    <div class="mesh-bg">
+        <div class="mesh-circle"></div>
+        <div class="mesh-circle"></div>
+        <div class="mesh-circle"></div>
+    </div>
+    <div class="grid-overlay"></div>
 
-        <h1>Smart Ticket Management</h1>
-        <p class="subtitle">Employee Login</p>
+    <!-- Floating ticket previews -->
+    <div class="float-cards">
+        <div class="float-card">
+            <div class="float-card-label">IT Support</div>
+            <div class="float-card-text">Laptop screen flickering on startup</div>
+            <div class="float-card-badge badge-cyan">● Open</div>
+        </div>
+        <div class="float-card">
+            <div class="float-card-label">HR</div>
+            <div class="float-card-text">Leave request — annual leave</div>
+            <div class="float-card-badge badge-amber">● In Progress</div>
+        </div>
+        <div class="float-card">
+            <div class="float-card-label">Finance</div>
+            <div class="float-card-text">Invoice #2847 needs approval</div>
+            <div class="float-card-badge badge-green">● Closed</div>
+        </div>
+    </div>
 
-        <form id="loginForm">
+    <div class="brand-z">
+        <div class="logo-mark">
+            <div class="logo-box">ST</div>
+            <span class="logo-text">Smart Tickets</span>
+        </div>
+    </div>
 
-            <div class="input-group">
-                <label>Email</label>
-                <input
-                    type="email"
-                    id="email"
-                    placeholder="Enter email"
-                    required
-                >
-            </div>
+    <div class="hero-text">
+        <h1>AI-Powered<br><em>Ticket</em><br>Management</h1>
+        <p>Automatically classify, route, and resolve support tickets using machine learning. Zero manual sorting needed.</p>
+    </div>
 
-            <div class="input-group">
-                <label>Password</label>
-                <input
-                    type="password"
-                    id="password"
-                    placeholder="Enter 4-digit password"
-                    maxlength="4"
-                    required
-                >
-            </div>
+    <div class="stats-row">
+        <div class="stat">
+            <span class="stat-num">98%</span>
+            <span class="stat-label">Accuracy</span>
+        </div>
+        <div class="stat">
+            <span class="stat-num">4×</span>
+            <span class="stat-label">Faster routing</span>
+        </div>
+        <div class="stat">
+            <span class="stat-num">24/7</span>
+            <span class="stat-label">Availability</span>
+        </div>
+    </div>
+</div>
 
-            <button type="submit" class="login-btn">
-                Login
+<!-- RIGHT: Form -->
+<div class="right">
+    <div class="form-wrap">
+
+        <div class="login-theme-row">
+            <button class="theme-toggle" id="themeToggle" aria-label="Toggle dark mode">
+                <div class="theme-toggle-knob">
+                    <span id="themeIcon">☀️</span>
+                </div>
             </button>
+        </div>
 
-            <p id="message"></p>
+        <div class="form-header">
+            <p>Welcome back</p>
+            <h2>Sign in to your account</h2>
+        </div>
 
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% for cat, msg in messages %}
+                <div class="flash-msg flash-{{ cat }}">{{ msg }}</div>
+            {% endfor %}
+        {% endwith %}
+
+        <form id="loginForm" method="POST" action="/login">
+            <div class="field">
+                <label>Email address</label>
+                <input type="email" name="email" id="email" placeholder="you@company.com" required autocomplete="email">
+            </div>
+            <div class="field">
+                <label>Password</label>
+                <input type="password" name="password" id="password" placeholder="••••••••" required>
+            </div>
+            <button type="submit" class="submit-btn" id="submitBtn">Sign In →</button>
+            <div class="msg" id="msg"></div>
         </form>
 
+        <div class="form-footer">
+            <span>No account yet?</span>
+            <a href="/register">Create account →</a>
+        </div>
     </div>
 </div>
 
 <script>
-
-document.addEventListener("DOMContentLoaded", () => {
-
-    const loginForm = document.getElementById("loginForm");
-    const message = document.getElementById("message");
-
-    loginForm.addEventListener("submit", async (e) => {
-
-        e.preventDefault();
-
-        const email = document.getElementById("email").value.trim();
-        const password = document.getElementById("password").value.trim();
-
-        if (!email || !password) {
-            message.className = "error";
-            message.textContent = "Please complete all fields";
-            return;
-        }
-
-        try {
-
-            const response = await fetch("/login", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    email: email,
-                    password: password
-                })
-            });
-
-            const result = await response.json();
-
-            if (response.ok && result.success) {
-
-                message.className = "success";
-                message.textContent = "Login successful";
-
-                // Store logged in user
-                localStorage.setItem(
-                    "currentUser",
-                    JSON.stringify(result)
-                );
-
-                setTimeout(() => {
-                    window.location.href = "/index";
-                }, 1000);
-
-            } else {
-
-                message.className = "error";
-                message.textContent =
-                    result.message || "Invalid email or password";
-            }
-
-        } catch (error) {
-
-            console.error(error);
-
-            message.className = "error";
-            message.textContent =
-                "Unable to connect to the server";
-        }
-
+    /* Theme */
+    const html = document.documentElement;
+    const toggleBtn = document.getElementById('themeToggle');
+    const themeIcon = document.getElementById('themeIcon');
+    const saved = localStorage.getItem('stms-theme') || 'light';
+    html.setAttribute('data-theme', saved);
+    themeIcon.textContent = saved === 'dark' ? '🌙' : '☀️';
+    toggleBtn.addEventListener('click', () => {
+        const next = html.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+        html.setAttribute('data-theme', next);
+        localStorage.setItem('stms-theme', next);
+        themeIcon.textContent = next === 'dark' ? '🌙' : '☀️';
     });
 
-});
+    /* Login form */
+    document.getElementById('loginForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const btn = document.getElementById('submitBtn');
+        const msg = document.getElementById('msg');
+        btn.disabled = true;
+        btn.textContent = 'Signing in…';
+        msg.className = 'msg';
 
+        try {
+            const res = await fetch('/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email: document.getElementById('email').value.trim(),
+                    password: document.getElementById('password').value
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                msg.className = 'msg success';
+                msg.textContent = '✓ Authenticated. Redirecting…';
+                setTimeout(() => window.location.href = data.redirect, 700);
+            } else {
+                msg.className = 'msg error';
+                msg.textContent = data.message || 'Invalid credentials.';
+                btn.disabled = false;
+                btn.textContent = 'Sign In →';
+            }
+        } catch(err) {
+            msg.className = 'msg error';
+            msg.textContent = 'Server unreachable. Try again.';
+            btn.disabled = false;
+            btn.textContent = 'Sign In →';
+        }
+    });
 </script>
-
 </body>
 </html>
