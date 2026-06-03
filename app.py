@@ -190,10 +190,53 @@ def logout():
 @login_required
 def index():
     popup = session.pop("ticket_popup", None)
+    tone_error = session.pop("tone_error", None)
+    ticket_draft = session.pop("ticket_draft", "")
     return render_template("index.html",
                            username=session["username"],
                            department=session["department"],
-                           ticket_popup=popup)
+                           ticket_popup=popup,
+                           tone_error=tone_error,
+                           ticket_draft=ticket_draft)
+
+
+
+# ── Category → correct department mapping ──
+CATEGORY_DEPARTMENT = {
+    "IT":         "IT",
+    "HR":         "HR",
+    "Finance":    "Finance",
+    "Operations": "Operations",
+}
+
+# ── Profanity / informal-tone word list ──
+BAD_TONE_WORDS = {
+    "fuck", "shit", "ass", "bitch", "damn", "crap", "bastard", "hell",
+    "idiot", "stupid", "wtf", "omg", "lol", "lmao", "wtf", "bs",
+    "piss", "pissed", "bloody", "screw", "sucks", "dumb", "suck",
+    "cunt", "dick", "cock", "asshole", "bullshit",
+}
+
+# ── Urgency keywords ──
+URGENCY_KEYWORDS = {
+    "urgent", "asap", "emergency", "immediately", "critical", "broken",
+    "down", "cannot work", "can't work", "not working", "crashed",
+    "deadline", "today", "right now", "help", "stuck", "blocked",
+    "data loss", "lost data", "security", "breach", "hacked",
+}
+
+def check_tone(text: str):
+    """Returns (is_clean: bool, offending_word: str|None)"""
+    words = set(text.lower().split())
+    for word in words:
+        clean = word.strip(".,!?;:\"'()")
+        if clean in BAD_TONE_WORDS:
+            return False, clean
+    return True, None
+
+def detect_urgency(text: str) -> bool:
+    lower = text.lower()
+    return any(kw in lower for kw in URGENCY_KEYWORDS)
 
 
 @app.route("/submit", methods=["POST"])
@@ -204,24 +247,53 @@ def submit_ticket():
         flash("Ticket description cannot be empty.", "error")
         return redirect("/index")
 
+    # ── Tone validation ──
+    is_clean, bad_word = check_tone(ticket_text)
+    if not is_clean:
+        session["tone_error"] = (
+            f"Please keep your ticket professional. "
+            f"Informal or offensive language was detected. "
+            f"Kindly revise your message and resubmit."
+        )
+        session["ticket_draft"] = ticket_text
+        return redirect("/index")
+
+    # ── Classify & detect urgency ──
     category, confidence = classify_ticket(ticket_text)
+    is_urgent = detect_urgency(ticket_text)
+    priority = "Urgent" if is_urgent else "Normal"
+
+    # ── Correct department routing (based on ticket category, not user dept) ──
+    assigned_department = CATEGORY_DEPARTMENT.get(category, category)
+
     ai_response = generate_ticket_response(ticket_text, category)
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     conn = get_db()
+
+    # Add priority & assigned_department columns if they don't exist yet
+    existing_cols = [row[1] for row in conn.execute("PRAGMA table_info(tickets)").fetchall()]
+    if "priority" not in existing_cols:
+        conn.execute("ALTER TABLE tickets ADD COLUMN priority TEXT DEFAULT 'Normal'")
+    if "assigned_department" not in existing_cols:
+        conn.execute("ALTER TABLE tickets ADD COLUMN assigned_department TEXT")
+
     conn.execute("""
-        INSERT INTO tickets (user_id, employee_name, department, ticket_text, category, confidence, status, ai_response, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO tickets (user_id, employee_name, department, ticket_text, category,
+                             confidence, status, ai_response, created_at, priority, assigned_department)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (session["user_id"], session["username"], session["department"],
-          ticket_text, category, confidence, "Open", ai_response, now))
+          ticket_text, category, confidence, "Open", ai_response, now,
+          priority, assigned_department))
     conn.commit()
     conn.close()
 
-    # Store AI response popup data in session to display on index page
     session["ticket_popup"] = {
         "category": category,
-        "confidence": confidence,
+        "assigned_department": assigned_department,
+        "confidence": round(confidence),
         "ai_response": ai_response,
+        "priority": priority,
         "ticket_text": ticket_text[:120] + ("…" if len(ticket_text) > 120 else "")
     }
     return redirect("/index")
@@ -254,7 +326,7 @@ def department_tickets():
         ).fetchall()
     else:
         tickets = conn.execute("""
-            SELECT * FROM tickets WHERE category = ? AND user_id != ? ORDER BY id DESC
+            SELECT * FROM tickets WHERE assigned_department = ? AND user_id != ? ORDER BY id DESC
         """, (session["department"], current_user_id)).fetchall()
     conn.close()
     return render_template("department.html", tickets=tickets, username=session["username"], role=session["role"])
