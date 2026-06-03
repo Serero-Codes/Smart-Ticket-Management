@@ -223,6 +223,242 @@
 
 @keyframes spin { to { transform: translate(-50%, -50%) rotate(360deg); } }
 
+/* ── AI Response Popup Modal ── */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    backdrop-filter: blur(4px);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    animation: overlayIn 0.25s ease both;
+}
+
+@keyframes overlayIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+.modal-overlay.closing {
+    animation: overlayOut 0.2s ease forwards;
+}
+
+@keyframes overlayOut {
+    to { opacity: 0; }
+}
+
+.modal-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 32px;
+    max-width: 560px;
+    width: 100%;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.35);
+    animation: modalIn 0.35s cubic-bezier(0.16,1,0.3,1) both;
+    position: relative;
+    overflow: hidden;
+}
+
+.modal-box::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--accent) 0%, rgba(37,99,235,0.4) 100%);
+}
+
+@keyframes modalIn {
+    from { opacity: 0; transform: scale(0.93) translateY(16px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.modal-box.closing {
+    animation: modalOut 0.2s ease forwards;
+}
+
+@keyframes modalOut {
+    to { opacity: 0; transform: scale(0.95) translateY(8px); }
+}
+
+.modal-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    gap: 12px;
+}
+
+.modal-title-group { display: flex; flex-direction: column; gap: 6px; }
+
+.modal-eyebrow {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.modal-eyebrow-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: pulse 1.4s ease infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: 0.5; transform: scale(0.75); }
+}
+
+.modal-title {
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--text);
+    letter-spacing: -0.02em;
+}
+
+.modal-close {
+    width: 32px; height: 32px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 50%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 16px;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.2s, color 0.2s;
+    line-height: 1;
+}
+
+.modal-close:hover {
+    background: var(--surface3);
+    color: var(--text);
+}
+
+/* Ticket snippet */
+.modal-ticket-snippet {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 18px;
+    font-size: 13px;
+    color: var(--text2);
+    font-style: italic;
+    line-height: 1.6;
+}
+
+/* Meta row: category + confidence */
+.modal-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+}
+
+.modal-meta-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.chip-category {
+    background: var(--accent-dim);
+    border: 1px solid rgba(37,99,235,0.2);
+    color: var(--accent);
+}
+
+.chip-confidence {
+    background: var(--surface3);
+    border: 1px solid var(--border);
+    color: var(--text2);
+}
+
+/* AI response section */
+.modal-ai-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    margin-bottom: 10px;
+}
+
+.modal-ai-body {
+    font-size: 14px;
+    font-weight: 400;
+    color: var(--text2);
+    line-height: 1.75;
+    padding: 16px 18px;
+    background: linear-gradient(135deg, rgba(37,99,235,0.05) 0%, rgba(37,99,235,0.01) 100%);
+    border: 1px solid rgba(37,99,235,0.12);
+    border-radius: 12px;
+    border-left: 3px solid var(--accent);
+    margin-bottom: 22px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.modal-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.btn-modal-history {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 9px 18px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text2);
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: 10px;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background 0.2s, border-color 0.2s;
+}
+
+.btn-modal-history:hover {
+    background: var(--surface3);
+    border-color: var(--accent);
+    color: var(--text);
+}
+
+.btn-modal-close {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 9px 20px;
+    background: var(--accent);
+    border: none;
+    color: #fff;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: opacity 0.2s;
+    box-shadow: 0 2px 10px var(--accent-glow);
+}
+
 /* Stagger sidebar cards */
 .info-card:nth-child(1) { animation: fadeUp 0.45s cubic-bezier(0.16,1,0.3,1) 0.12s both; }
 .info-card:nth-child(2) { animation: fadeUp 0.45s cubic-bezier(0.16,1,0.3,1) 0.18s both; }
@@ -377,5 +613,55 @@ document.getElementById('ticketForm').addEventListener('submit', function() {
     btn.classList.add('loading');
     btn.disabled = true;
 });
+
+// ── Popup Modal ──
+function closeModal() {
+    const overlay = document.getElementById('ticketModal');
+    if (!overlay) return;
+    overlay.classList.add('closing');
+    overlay.querySelector('.modal-box').classList.add('closing');
+    setTimeout(() => overlay.remove(), 210);
+}
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeModal();
+});
 </script>
-{% endblock %}
+
+{% if ticket_popup %}
+<div class="modal-overlay" id="ticketModal" onclick="if(event.target===this)closeModal()">
+    <div class="modal-box">
+        <div class="modal-header">
+            <div class="modal-title-group">
+                <span class="modal-eyebrow">
+                    <span class="modal-eyebrow-dot"></span>
+                    Ticket Submitted
+                </span>
+                <h2 class="modal-title">Your AI Response is Ready</h2>
+            </div>
+            <button class="modal-close" onclick="closeModal()" aria-label="Close">✕</button>
+        </div>
+
+        <div class="modal-ticket-snippet">
+            "{{ ticket_popup.ticket_text }}"
+        </div>
+
+        <div class="modal-meta">
+            <span class="modal-meta-chip chip-category">
+                ✦ {{ ticket_popup.category }}
+            </span>
+            <span class="modal-meta-chip chip-confidence">
+                {{ ticket_popup.confidence }}% confidence
+            </span>
+        </div>
+
+        <p class="modal-ai-label">Auto-generated response</p>
+        <div class="modal-ai-body">{{ ticket_popup.ai_response }}</div>
+
+        <div class="modal-footer">
+            <a href="/history" class="btn-modal-history">View all tickets →</a>
+            <button class="btn-modal-close" onclick="closeModal()">Got it</button>
+        </div>
+    </div>
+</div>
+{% endif %}
