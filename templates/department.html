@@ -154,6 +154,24 @@ tbody tr.hidden-row {
     </div>
 </div>
 
+<!-- Notice: own tickets excluded -->
+<div class="animate-in" style="animation-delay:0.03s; margin-bottom:18px;">
+    <div style="
+        display:flex; align-items:center; gap:10px;
+        padding:10px 16px;
+        background: rgba(245,158,11,0.06);
+        border: 1px solid rgba(245,158,11,0.2);
+        border-left: 3px solid var(--warn);
+        border-radius: 10px;
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--text2);
+    ">
+        <span style="font-size:15px;flex-shrink:0">🔒</span>
+        <span>Your own submitted tickets are <strong style="color:var(--text)">not shown here</strong> — visit <a href="/history" style="color:var(--accent);font-weight:700;text-decoration:none">My Tickets</a> to see them.</span>
+    </div>
+</div>
+
 <div class="filter-bar animate-in" style="animation-delay:0.05s">
     <button class="filter-btn active" data-filter="all">
         All <span class="count-chip" id="count-all">{{ tickets|length }}</span>
