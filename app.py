@@ -393,5 +393,210 @@ def api_stats():
     return jsonify({"categories": categories, "statuses": statuses, "total": len(tickets)})
 
 
+
+# =========================
+# ANALYTICS DASHBOARD
+# =========================
+
+@app.route("/analytics")
+@admin_required
+def analytics():
+    from datetime import datetime, timedelta
+    conn = get_db()
+
+    existing_cols = [row[1] for row in conn.execute("PRAGMA table_info(tickets)").fetchall()]
+    if "priority" not in existing_cols:
+        conn.execute("ALTER TABLE tickets ADD COLUMN priority TEXT DEFAULT 'Normal'")
+    if "assigned_department" not in existing_cols:
+        conn.execute("ALTER TABLE tickets ADD COLUMN assigned_department TEXT")
+    conn.commit()
+
+    tickets = conn.execute("SELECT * FROM tickets ORDER BY id DESC").fetchall()
+    users   = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+    conn.close()
+
+    total    = len(tickets)
+    closed_n = sum(1 for t in tickets if t["status"] == "Closed")
+    open_n   = sum(1 for t in tickets if t["status"] == "Open")
+    in_prog  = sum(1 for t in tickets if t["status"] == "In Progress")
+    urgent_n = sum(1 for t in tickets if (t["priority"] or "Normal") == "Urgent")
+    normal_n = total - urgent_n
+    res_rate = round(closed_n / total * 100) if total else 0
+
+    now = datetime.now()
+    week_ago = now - timedelta(days=7)
+    this_week = 0
+    for t in tickets:
+        try:
+            ts = datetime.strptime(t["created_at"], "%Y-%m-%d %H:%M:%S")
+            if ts >= week_ago:
+                this_week += 1
+        except Exception:
+            pass
+
+    kpis = {
+        "total": total, "closed": closed_n, "open": open_n,
+        "in_progress": in_prog, "urgent": urgent_n, "normal": normal_n,
+        "resolution_rate": res_rate, "this_week": this_week,
+        "urgent_pct": round(urgent_n / total * 100) if total else 0,
+        "users": users,
+    }
+
+    volume_map = {}
+    for i in range(29, -1, -1):
+        day = (now - timedelta(days=i)).strftime("%b %d")
+        volume_map[day] = 0
+    for t in tickets:
+        try:
+            day = datetime.strptime(t["created_at"], "%Y-%m-%d %H:%M:%S").strftime("%b %d")
+            if day in volume_map:
+                volume_map[day] += 1
+        except Exception:
+            pass
+    volume_labels = list(volume_map.keys())
+    volume_data   = list(volume_map.values())
+
+    cat_map = {}
+    for t in tickets:
+        cat_map[t["category"]] = cat_map.get(t["category"], 0) + 1
+    cat_labels = list(cat_map.keys())
+    cat_data   = list(cat_map.values())
+
+    depts = ["IT", "HR", "Finance", "Operations"]
+    dept_stats = []
+    for d in depts:
+        dt = [t for t in tickets if (t["assigned_department"] or t["category"]) == d]
+        if not dt:
+            continue
+        dc = len(dt)
+        dd = sum(1 for t in dt if t["status"] == "Closed")
+        do = sum(1 for t in dt if t["status"] == "Open")
+        du = sum(1 for t in dt if (t["priority"] or "Normal") == "Urgent")
+        dept_stats.append({
+            "name": d, "total": dc, "closed": dd, "open": do, "urgent": du,
+            "share": round(dc / total * 100) if total else 0,
+            "resolution": round(dd / dc * 100) if dc else 0,
+        })
+
+    return render_template("analytics.html",
+                           username=session["username"],
+                           kpis=kpis,
+                           volume_labels=volume_labels,
+                           volume_data=volume_data,
+                           cat_labels=cat_labels,
+                           cat_data=cat_data,
+                           dept_stats=dept_stats)
+
+
+# =========================
+# WEEKLY REPORT
+# =========================
+
+@app.route("/report")
+@admin_required
+def weekly_report():
+    from datetime import datetime, timedelta
+    conn = get_db()
+
+    existing_cols = [row[1] for row in conn.execute("PRAGMA table_info(tickets)").fetchall()]
+    if "priority" not in existing_cols:
+        conn.execute("ALTER TABLE tickets ADD COLUMN priority TEXT DEFAULT 'Normal'")
+    if "assigned_department" not in existing_cols:
+        conn.execute("ALTER TABLE tickets ADD COLUMN assigned_department TEXT")
+    conn.commit()
+
+    tickets = conn.execute("SELECT * FROM tickets ORDER BY id DESC").fetchall()
+    users   = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+    conn.close()
+
+    now      = datetime.now()
+    week_ago = now - timedelta(days=7)
+
+    total    = len(tickets)
+    closed_n = sum(1 for t in tickets if t["status"] == "Closed")
+    open_n   = sum(1 for t in tickets if t["status"] == "Open")
+    urgent_n = sum(1 for t in tickets if (t["priority"] or "Normal") == "Urgent")
+    res_rate = round(closed_n / total * 100) if total else 0
+
+    this_week = 0
+    for t in tickets:
+        try:
+            if datetime.strptime(t["created_at"], "%Y-%m-%d %H:%M:%S") >= week_ago:
+                this_week += 1
+        except Exception:
+            pass
+
+    depts = ["IT", "HR", "Finance", "Operations"]
+    dept_stats = []
+    for d in depts:
+        dt = [t for t in tickets if (t["assigned_department"] or t["category"]) == d]
+        if not dt:
+            continue
+        dc = len(dt)
+        dd = sum(1 for t in dt if t["status"] == "Closed")
+        do = sum(1 for t in dt if t["status"] == "Open")
+        du = sum(1 for t in dt if (t["priority"] or "Normal") == "Urgent")
+        dr = round(dd / dc * 100) if dc else 0
+
+        if dr >= 80:
+            perf = f"<strong>{d}</strong> is performing well with a <strong>{dr}% resolution rate</strong>."
+        elif dr >= 50:
+            perf = f"<strong>{d}</strong> has a moderate resolution rate of <strong>{dr}%</strong> — there is room for improvement."
+        else:
+            perf = f"<strong>{d}</strong> has a low resolution rate of <strong>{dr}%</strong> and requires attention."
+
+        urg_note  = f" {du} ticket{'s' if du != 1 else ''} flagged as urgent." if du else " No urgent tickets this period."
+        open_note = f" {do} ticket{'s' if do != 1 else ''} remain{'s' if do == 1 else ''} open." if do else " All tickets resolved."
+
+        dept_stats.append({
+            "name": d, "total": dc, "closed": dd, "open": do,
+            "urgent": du, "resolution": dr,
+            "insight": perf + urg_note + open_note,
+        })
+
+    cat_map = {}
+    for t in tickets:
+        cat_map[t["category"]] = cat_map.get(t["category"], 0) + 1
+    top_cat   = max(cat_map, key=cat_map.get) if cat_map else "N/A"
+    top_cat_n = cat_map.get(top_cat, 0)
+
+    if res_rate >= 75:
+        overall = (f"The platform is operating at a <strong>high efficiency level</strong> with a "
+                   f"<strong>{res_rate}% resolution rate</strong> across {total} total tickets. ")
+    elif res_rate >= 50:
+        overall = (f"The platform shows <strong>moderate performance</strong> with a "
+                   f"<strong>{res_rate}% resolution rate</strong>. Management attention is recommended for open backlogs. ")
+    else:
+        overall = (f"Platform performance is <strong>below target</strong>. The resolution rate stands at "
+                   f"<strong>{res_rate}%</strong> — escalation is advised. ")
+
+    overall += (f"<strong>{this_week} new ticket{'s' if this_week != 1 else ''}</strong> were submitted this week. "
+                f"The highest-volume category is <strong>{top_cat}</strong> with {top_cat_n} ticket{'s' if top_cat_n != 1 else ''}. ")
+    if urgent_n:
+        overall += f"<strong>{urgent_n} urgent ticket{'s' if urgent_n != 1 else ''}</strong> require immediate resolution. "
+    else:
+        overall += "No urgent tickets are currently outstanding. "
+
+    week_start = (now - timedelta(days=6)).strftime("%d %b")
+    week_end   = now.strftime("%d %b %Y")
+    week_label = f"{week_start} – {week_end}"
+
+    report = {
+        "week_label":     week_label,
+        "generated_at":   now.strftime("%d %B %Y, %H:%M"),
+        "total":          total,
+        "resolution_rate": res_rate,
+        "urgent":         urgent_n,
+        "this_week":      this_week,
+        "users":          users,
+        "insights":       overall,
+        "dept_stats":     dept_stats,
+        "recent_tickets": tickets[:25],
+    }
+
+    return render_template("report.html",
+                           username=session["username"],
+                           report=report)
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0")
