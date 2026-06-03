@@ -1,0 +1,462 @@
+{% extends "base.html" %}
+{% block title %}Weekly Report{% endblock %}
+
+{% block head %}
+<style>
+@media print {
+    nav, .report-actions, .page-header { display: none !important; }
+    body { background: #fff !important; }
+    .report-wrapper { padding: 0 !important; }
+    .report-page { box-shadow: none !important; border: none !important; }
+    .section-break { page-break-before: always; }
+}
+
+.report-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+}
+
+.btn-print {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 10px 20px;
+    background: var(--accent);
+    color: #fff;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    box-shadow: 0 2px 10px var(--accent-glow);
+    transition: opacity 0.2s, transform 0.15s;
+}
+
+.btn-print:hover { opacity: 0.9; transform: translateY(-1px); }
+
+.btn-ghost-sm {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 10px 18px;
+    background: var(--surface);
+    color: var(--text2);
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background 0.2s, border-color 0.2s;
+}
+
+.btn-ghost-sm:hover { background: var(--surface3); border-color: var(--accent); color: var(--text); }
+
+.dept-filter {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+}
+
+.dept-filter label { font-size: 12px; font-weight: 600; color: var(--muted); }
+
+.dept-select {
+    padding: 8px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.dept-select:focus { border-color: var(--accent); }
+
+/* Report page */
+.report-page {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 48px;
+    box-shadow: var(--shadow-md);
+    max-width: 900px;
+    margin: 0 auto;
+    animation: fadeUp 0.5s cubic-bezier(0.16,1,0.3,1) both;
+    transition: background 0.35s, border-color 0.35s;
+}
+
+@keyframes fadeUp {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Report header */
+.report-letterhead {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    padding-bottom: 28px;
+    border-bottom: 2px solid var(--border);
+    margin-bottom: 36px;
+}
+
+.report-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.report-logo {
+    width: 42px; height: 42px;
+    background: var(--accent);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 14px; color: #fff;
+    box-shadow: 0 2px 10px var(--accent-glow);
+}
+
+.report-brand-name { font-size: 16px; font-weight: 800; color: var(--text); letter-spacing: -0.01em; }
+.report-brand-sub  { font-size: 11px; color: var(--muted); margin-top: 2px; font-weight: 500; }
+
+.report-meta { text-align: right; }
+.report-type { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); margin-bottom: 6px; }
+.report-period { font-size: 20px; font-weight: 800; color: var(--text); letter-spacing: -0.02em; }
+.report-generated { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+/* Section heading */
+.report-section-title {
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--accent);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.report-section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+}
+
+/* Summary grid */
+.report-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 36px;
+}
+
+.report-kpi {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    text-align: center;
+}
+
+.report-kpi-val {
+    font-size: 32px;
+    font-weight: 800;
+    color: var(--text);
+    line-height: 1;
+    letter-spacing: -0.03em;
+}
+
+.report-kpi-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    margin-top: 6px;
+}
+
+/* Insights block */
+.insights-block {
+    background: linear-gradient(135deg, rgba(37,99,235,0.05) 0%, rgba(37,99,235,0.01) 100%);
+    border: 1px solid rgba(37,99,235,0.15);
+    border-left: 3px solid var(--accent);
+    border-radius: 12px;
+    padding: 20px 22px;
+    margin-bottom: 32px;
+}
+
+.insights-block p {
+    font-size: 13px;
+    color: var(--text2);
+    line-height: 1.8;
+    margin: 0;
+}
+
+.insights-block strong { color: var(--text); }
+
+/* Dept section */
+.dept-section {
+    margin-bottom: 32px;
+    padding: 22px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+}
+
+.dept-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+}
+
+.dept-section-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.dept-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.dept-chip {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 1px solid;
+}
+
+.chip-vol  { color: var(--accent);  background: var(--accent-dim); border-color: rgba(37,99,235,0.2); }
+.chip-res  { color: var(--closed);  background: rgba(16,185,129,0.08); border-color: rgba(16,185,129,0.2); }
+.chip-urg  { color: var(--error);   background: rgba(239,68,68,0.08); border-color: rgba(239,68,68,0.2); }
+.chip-open { color: var(--warn);    background: rgba(245,158,11,0.08); border-color: rgba(245,158,11,0.2); }
+
+.dept-insight {
+    font-size: 12px;
+    color: var(--text2);
+    line-height: 1.7;
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+    margin-top: 4px;
+}
+
+/* Top tickets table */
+.report-table { width: 100%; border-collapse: collapse; margin-bottom: 32px; }
+.report-table th {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    padding: 0 8px 10px 0;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+}
+
+.report-table td {
+    padding: 11px 8px 11px 0;
+    font-size: 12px;
+    color: var(--text2);
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+}
+
+.report-table tr:last-child td { border-bottom: none; }
+.report-table td:first-child { color: var(--text); font-weight: 500; max-width: 280px; }
+
+/* Footer */
+.report-footer {
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.report-footer-left { font-size: 11px; color: var(--muted); line-height: 1.6; }
+.report-footer-right { font-size: 11px; color: var(--muted); text-align: right; }
+
+.badge-urg  { display:inline-flex;align-items:center;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(239,68,68,0.1);color:var(--error);border:1px solid rgba(239,68,68,0.2); }
+.badge-norm { display:inline-flex;align-items:center;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;background:var(--surface3);color:var(--muted);border:1px solid var(--border); }
+.badge-open { display:inline-flex;align-items:center;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;background:rgba(6,182,212,0.08);color:var(--open);border:1px solid rgba(6,182,212,0.2); }
+.badge-prog { display:inline-flex;align-items:center;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;background:rgba(245,158,11,0.08);color:var(--warn);border:1px solid rgba(245,158,11,0.2); }
+.badge-clos { display:inline-flex;align-items:center;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;background:rgba(16,185,129,0.08);color:var(--closed);border:1px solid rgba(16,185,129,0.2); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header animate-in">
+    <div class="page-header-left">
+        <p>Admin overview</p>
+        <h1>Weekly Business Report</h1>
+    </div>
+</div>
+
+<!-- Actions bar -->
+<div class="report-actions">
+    <button class="btn-print" onclick="window.print()">🖨️ Print / Save as PDF</button>
+    <a href="/analytics" class="btn-ghost-sm">← Back to Analytics</a>
+    <div class="dept-filter">
+        <label for="deptFilter">Filter department:</label>
+        <select class="dept-select" id="deptFilter" onchange="filterDept(this.value)">
+            <option value="all">All Departments</option>
+            <option value="IT">IT</option>
+            <option value="HR">HR</option>
+            <option value="Finance">Finance</option>
+            <option value="Operations">Operations</option>
+        </select>
+    </div>
+</div>
+
+<!-- Report document -->
+<div class="report-page" id="reportPage">
+
+    <!-- Letterhead -->
+    <div class="report-letterhead">
+        <div class="report-brand">
+            <div class="report-logo">ST</div>
+            <div>
+                <p class="report-brand-name">Smart Ticket Management System</p>
+                <p class="report-brand-sub">Automated Weekly Business Report</p>
+            </div>
+        </div>
+        <div class="report-meta">
+            <p class="report-type">Weekly Summary Report</p>
+            <p class="report-period">{{ report.week_label }}</p>
+            <p class="report-generated">Generated: {{ report.generated_at }}</p>
+        </div>
+    </div>
+
+    <!-- Executive Summary KPIs -->
+    <p class="report-section-title">Executive Summary</p>
+    <div class="report-kpi-grid">
+        <div class="report-kpi">
+            <p class="report-kpi-val">{{ report.total }}</p>
+            <p class="report-kpi-label">Total Tickets</p>
+        </div>
+        <div class="report-kpi">
+            <p class="report-kpi-val" style="color:#10b981">{{ report.resolution_rate }}%</p>
+            <p class="report-kpi-label">Resolution Rate</p>
+        </div>
+        <div class="report-kpi">
+            <p class="report-kpi-val" style="color:#ef4444">{{ report.urgent }}</p>
+            <p class="report-kpi-label">Urgent Tickets</p>
+        </div>
+        <div class="report-kpi">
+            <p class="report-kpi-val" style="color:#2563eb">{{ report.this_week }}</p>
+            <p class="report-kpi-label">New This Week</p>
+        </div>
+    </div>
+
+    <!-- AI-generated insights -->
+    <p class="report-section-title">Key Insights</p>
+    <div class="insights-block">
+        <p>{{ report.insights | safe }}</p>
+    </div>
+
+    <!-- Department breakdown -->
+    <p class="report-section-title">Department Performance</p>
+    {% for dept in report.dept_stats %}
+    <div class="dept-section dept-block" data-dept="{{ dept.name }}">
+        <div class="dept-section-header">
+            <span class="dept-section-name">
+                {% if dept.name == 'IT' %}💻{% elif dept.name == 'HR' %}👥{% elif dept.name == 'Finance' %}💰{% else %}⚙️{% endif %}
+                {{ dept.name }}
+            </span>
+            <div class="dept-chips">
+                <span class="dept-chip chip-vol">{{ dept.total }} tickets</span>
+                <span class="dept-chip chip-res">{{ dept.resolution }}% resolved</span>
+                {% if dept.urgent > 0 %}
+                <span class="dept-chip chip-urg">{{ dept.urgent }} urgent</span>
+                {% endif %}
+                {% if dept.open > 0 %}
+                <span class="dept-chip chip-open">{{ dept.open }} open</span>
+                {% endif %}
+            </div>
+        </div>
+        <p class="dept-insight">{{ dept.insight }}</p>
+    </div>
+    {% endfor %}
+
+    <!-- Recent tickets table -->
+    <p class="report-section-title section-break">Recent Ticket Log</p>
+    <table class="report-table" id="ticketTable">
+        <thead>
+            <tr>
+                <th>Ticket Description</th>
+                <th>Category</th>
+                <th>Dept</th>
+                <th>Priority</th>
+                <th>Status</th>
+                <th>Submitted</th>
+                <th>Employee</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for t in report.recent_tickets %}
+            <tr class="ticket-row" data-dept="{{ t.assigned_department or t.category }}">
+                <td>{{ t.ticket_text[:80] }}{% if t.ticket_text|length > 80 %}…{% endif %}</td>
+                <td>{{ t.category }}</td>
+                <td>{{ t.assigned_department or '—' }}</td>
+                <td>
+                    {% if t.priority == 'Urgent' %}
+                    <span class="badge-urg">🔴 Urgent</span>
+                    {% else %}
+                    <span class="badge-norm">Normal</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if t.status == 'Open' %}<span class="badge-open">Open</span>
+                    {% elif t.status == 'In Progress' %}<span class="badge-prog">In Progress</span>
+                    {% else %}<span class="badge-clos">Closed</span>{% endif %}
+                </td>
+                <td style="white-space:nowrap">{{ t.created_at[:10] if t.created_at else '—' }}</td>
+                <td>{{ t.employee_name }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- Footer -->
+    <div class="report-footer">
+        <div class="report-footer-left">
+            Smart Ticket Management System<br>
+            Confidential — Internal Use Only
+        </div>
+        <div class="report-footer-right">
+            Report period: {{ report.week_label }}<br>
+            {{ report.total }} total tickets · {{ report.users }} users
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function filterDept(val) {
+    // Filter dept sections
+    document.querySelectorAll('.dept-block').forEach(el => {
+        el.style.display = (val === 'all' || el.dataset.dept === val) ? '' : 'none';
+    });
+    // Filter ticket table rows
+    document.querySelectorAll('.ticket-row').forEach(row => {
+        row.style.display = (val === 'all' || row.dataset.dept === val) ? '' : 'none';
+    });
+}
+</script>
+{% endblock %}
