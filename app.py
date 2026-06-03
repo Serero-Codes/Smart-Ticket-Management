@@ -189,9 +189,11 @@ def logout():
 @app.route("/index")
 @login_required
 def index():
+    popup = session.pop("ticket_popup", None)
     return render_template("index.html",
                            username=session["username"],
-                           department=session["department"])
+                           department=session["department"],
+                           ticket_popup=popup)
 
 
 @app.route("/submit", methods=["POST"])
@@ -215,8 +217,14 @@ def submit_ticket():
     conn.commit()
     conn.close()
 
-    flash(f"Ticket submitted! Classified as: {category} ({confidence}% confidence)", "success")
-    return redirect("/history")
+    # Store AI response popup data in session to display on index page
+    session["ticket_popup"] = {
+        "category": category,
+        "confidence": confidence,
+        "ai_response": ai_response,
+        "ticket_text": ticket_text[:120] + ("…" if len(ticket_text) > 120 else "")
+    }
+    return redirect("/index")
 
 
 @app.route("/history")
@@ -238,12 +246,16 @@ def history():
 @login_required
 def department_tickets():
     conn = get_db()
+    current_user_id = session["user_id"]
     if session["role"] == "admin":
-        tickets = conn.execute("SELECT * FROM tickets ORDER BY id DESC").fetchall()
+        tickets = conn.execute(
+            "SELECT * FROM tickets WHERE user_id != ? ORDER BY id DESC",
+            (current_user_id,)
+        ).fetchall()
     else:
         tickets = conn.execute("""
-            SELECT * FROM tickets WHERE category = ? ORDER BY id DESC
-        """, (session["department"],)).fetchall()
+            SELECT * FROM tickets WHERE category = ? AND user_id != ? ORDER BY id DESC
+        """, (session["department"], current_user_id)).fetchall()
     conn.close()
     return render_template("department.html", tickets=tickets, username=session["username"], role=session["role"])
 
