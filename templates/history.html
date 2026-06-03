@@ -44,6 +44,95 @@ tbody tr:nth-child({{ i }}) { animation-delay: {{ 0.05 + i * 0.03 }}s; }
     from { opacity: 0; transform: translateY(8px); }
     to { opacity: 1; transform: translateY(0); }
 }
+
+/* ── AI Response Panel ── */
+.ai-response-row td {
+    padding: 0 !important;
+    animation: none !important;
+}
+
+.ai-response-panel {
+    display: none;
+    background: linear-gradient(135deg, rgba(37,99,235,0.04) 0%, rgba(37,99,235,0.01) 100%);
+    border-top: 1px solid rgba(37,99,235,0.12);
+    padding: 18px 20px 18px 24px;
+    position: relative;
+}
+
+.ai-response-panel.open { display: block; }
+
+.ai-response-panel::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: linear-gradient(180deg, var(--accent) 0%, rgba(37,99,235,0.3) 100%);
+    border-radius: 0 2px 2px 0;
+}
+
+.ai-response-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.ai-response-label {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+}
+
+.ai-response-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    background: var(--accent-dim);
+    border: 1px solid rgba(37,99,235,0.2);
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--accent);
+}
+
+.ai-response-text {
+    font-size: 13.5px;
+    font-weight: 400;
+    color: var(--text2);
+    line-height: 1.75;
+    max-width: 760px;
+}
+
+.toggle-response-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent);
+    background: var(--accent-dim);
+    border: 1px solid rgba(37,99,235,0.2);
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+    white-space: nowrap;
+}
+
+.toggle-response-btn:hover {
+    background: rgba(37,99,235,0.12);
+    border-color: rgba(37,99,235,0.35);
+}
+
+.toggle-response-btn .btn-arrow {
+    transition: transform 0.25s cubic-bezier(0.16,1,0.3,1);
+    display: inline-block;
+}
+
+.toggle-response-btn.active .btn-arrow { transform: rotate(180deg); }
 </style>
 {% endblock %}
 
@@ -98,6 +187,7 @@ tbody tr:nth-child({{ i }}) { animation-delay: {{ 0.05 + i * 0.03 }}s; }
                     <th>Confidence</th>
                     <th>Status</th>
                     <th>Submitted</th>
+                    <th>AI Response</th>
                 </tr>
             </thead>
             <tbody>
@@ -125,7 +215,29 @@ tbody tr:nth-child({{ i }}) { animation-delay: {{ 0.05 + i * 0.03 }}s; }
                         {% endif %}
                     </td>
                     <td style="font-size:12px;color:var(--muted);font-weight:500">{{ t['created_at'][:16] }}</td>
+                    <td>
+                        {% if t['ai_response'] %}
+                        <button class="toggle-response-btn" onclick="toggleResponse({{ t['id'] }}, this)" type="button">
+                            View reply <span class="btn-arrow">▾</span>
+                        </button>
+                        {% else %}
+                        <span style="font-size:11px;color:var(--muted)">—</span>
+                        {% endif %}
+                    </td>
                 </tr>
+                {% if t['ai_response'] %}
+                <tr class="ai-response-row">
+                    <td colspan="7">
+                        <div class="ai-response-panel" id="panel-{{ t['id'] }}">
+                            <div class="ai-response-header">
+                                <span class="ai-response-label">Auto-Response</span>
+                                <span class="ai-response-badge">✦ AI · {{ t['category'] }}</span>
+                            </div>
+                            <p class="ai-response-text">{{ t['ai_response'] }}</p>
+                        </div>
+                    </td>
+                </tr>
+                {% endif %}
                 {% endfor %}
             </tbody>
         </table>
@@ -138,4 +250,16 @@ tbody tr:nth-child({{ i }}) { animation-delay: {{ 0.05 + i * 0.03 }}s; }
     </div>
     {% endif %}
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleResponse(id, btn) {
+    const panel = document.getElementById('panel-' + id);
+    const isOpen = panel.classList.toggle('open');
+    btn.innerHTML = isOpen
+        ? 'Hide reply <span class="btn-arrow" style="transform:rotate(180deg);display:inline-block;transition:transform 0.25s">▾</span>'
+        : 'View reply <span class="btn-arrow" style="display:inline-block;transition:transform 0.25s">▾</span>';
+}
+</script>
 {% endblock %}

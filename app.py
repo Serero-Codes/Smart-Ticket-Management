@@ -5,6 +5,7 @@ from datetime import datetime
 from flask import Flask, render_template, request, redirect, session, flash, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
 from classifier import classify_ticket
+from ai_responder import generate_ticket_response
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", os.urandom(24))
@@ -48,10 +49,16 @@ def init_db():
             category TEXT NOT NULL,
             confidence REAL NOT NULL,
             status TEXT NOT NULL DEFAULT 'Open',
+            ai_response TEXT,
             created_at TEXT NOT NULL,
             FOREIGN KEY (user_id) REFERENCES users(id)
         )
     """)
+
+    # Migrate existing DB — add ai_response column if missing
+    existing_cols = [row[1] for row in cursor.execute("PRAGMA table_info(tickets)").fetchall()]
+    if "ai_response" not in existing_cols:
+        cursor.execute("ALTER TABLE tickets ADD COLUMN ai_response TEXT")
 
     # Seed a default admin if none exists
     existing = cursor.execute("SELECT id FROM users WHERE role='admin'").fetchone()
@@ -196,14 +203,15 @@ def submit_ticket():
         return redirect("/index")
 
     category, confidence = classify_ticket(ticket_text)
+    ai_response = generate_ticket_response(ticket_text, category)
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     conn = get_db()
     conn.execute("""
-        INSERT INTO tickets (user_id, employee_name, department, ticket_text, category, confidence, status, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO tickets (user_id, employee_name, department, ticket_text, category, confidence, status, ai_response, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (session["user_id"], session["username"], session["department"],
-          ticket_text, category, confidence, "Open", now))
+          ticket_text, category, confidence, "Open", ai_response, now))
     conn.commit()
     conn.close()
 
