@@ -478,6 +478,25 @@
     </div>
 </div>
 
+{% if tone_error %}
+<div class="animate-in" style="margin-bottom:16px;">
+    <div style="
+        display:flex; align-items:flex-start; gap:14px;
+        padding:14px 18px;
+        background:linear-gradient(135deg, rgba(220,38,38,0.08) 0%, rgba(220,38,38,0.02) 100%);
+        border:1px solid rgba(220,38,38,0.3);
+        border-radius:12px;
+        border-left: 3px solid var(--error);
+    ">
+        <span style="font-size:18px;flex-shrink:0;margin-top:1px">🚫</span>
+        <div>
+            <p style="font-size:12px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:var(--error);margin:0 0 4px">Tone Warning — Ticket Not Submitted</p>
+            <p style="font-size:13px;color:var(--text2);line-height:1.6;margin:0">{{ tone_error }}</p>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <!-- Tone guidance banner -->
 <div class="animate-in" style="animation-delay:0.03s; margin-bottom:20px;">
     <div style="
@@ -512,7 +531,7 @@
                         id="ticketText"
                         maxlength="1000"
                         placeholder="e.g. My laptop screen is broken and I cannot access my work files. The issue started this morning after an update…"
-                        required></textarea>
+                        required>{{ ticket_draft | e }}</textarea>
                 </div>
 
                 <div class="char-row">
@@ -652,6 +671,14 @@ document.addEventListener('keydown', (e) => {
             </span>
             <span class="modal-meta-chip chip-confidence">
                 {{ ticket_popup.confidence }}% confidence
+            </span>
+            {% if ticket_popup.priority == 'Urgent' %}
+            <span class="modal-meta-chip" style="background:rgba(220,38,38,0.1);border:1px solid rgba(220,38,38,0.3);color:#dc2626;">
+                🔴 Urgent
+            </span>
+            {% endif %}
+            <span class="modal-meta-chip" style="background:var(--surface3);border:1px solid var(--border);color:var(--text2);">
+                → {{ ticket_popup.assigned_department }}
             </span>
         </div>
 
