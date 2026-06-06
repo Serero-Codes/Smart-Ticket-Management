@@ -6,6 +6,10 @@ from flask import Flask, render_template, request, redirect, session, flash, jso
 from werkzeug.security import generate_password_hash, check_password_hash
 from classifier import classify_ticket
 from ai_responder import generate_ticket_response
+from forecasting import build_forecast
+from governance import run_governance_audit, log_governance_event, init_governance_table
+from workflow import (init_workflow_tables, run_ticket_workflow, run_status_workflow,
+                      run_approval_workflow, get_sla_status, ROUTING_RULES)
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", os.urandom(24))
@@ -75,6 +79,12 @@ def init_db():
 
 
 init_db()
+
+# Init governance + workflow tables
+_gconn = get_db()
+init_governance_table(_gconn)
+init_workflow_tables(_gconn)
+_gconn.close()
 
 
 # =========================
@@ -286,7 +296,26 @@ def submit_ticket():
           ticket_text, category, confidence, "Open", ai_response, now,
           priority, assigned_department))
     conn.commit()
+    # Governance audit log
+    ticket_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
+    log_governance_event(conn, "ticket_submitted",
+        f"Ticket #{ticket_id} — category={category}, confidence={round(confidence)}%, priority={priority}, dept={assigned_department}",
+        session.get("username", "unknown"))
     conn.close()
+
+    # ── Workflow automation pipeline ──
+    _wconn = get_db()
+    init_workflow_tables(_wconn)
+    employee_email = _wconn.execute(
+        "SELECT email FROM users WHERE id=?", (session["user_id"],)
+    ).fetchone()
+    employee_email = employee_email["email"] if employee_email else None
+    run_ticket_workflow(_wconn, ticket_id, {
+        "category": category, "priority": priority,
+        "ai_response": ai_response, "ticket_text": ticket_text,
+        "employee_name": session["username"],
+    }, employee_email)
+    _wconn.close()
 
     session["ticket_popup"] = {
         "category": category,
@@ -341,8 +370,19 @@ def update_status(ticket_id):
         return "Invalid status", 400
 
     conn = get_db()
+    init_workflow_tables(conn)
+    ticket = conn.execute("SELECT * FROM tickets WHERE id=?", (ticket_id,)).fetchone()
+    note = request.form.get("note", "")
     conn.execute("UPDATE tickets SET status = ? WHERE id = ?", (new_status, ticket_id))
     conn.commit()
+    if ticket:
+        emp = conn.execute("SELECT email FROM users WHERE id=?", (ticket["user_id"],)).fetchone()
+        emp_email = emp["email"] if emp else None
+        run_status_workflow(conn, ticket_id, new_status,
+                            employee_email=emp_email,
+                            employee_name=ticket["employee_name"],
+                            category=ticket["category"],
+                            note=note)
     conn.close()
     return redirect("/department")
 
@@ -597,6 +637,197 @@ def weekly_report():
     return render_template("report.html",
                            username=session["username"],
                            report=report)
+
+
+# =========================
+# FORECAST
+# =========================
+
+@app.route("/forecast")
+@admin_required
+def forecast():
+    conn = get_db()
+    existing_cols = [row[1] for row in conn.execute("PRAGMA table_info(tickets)").fetchall()]
+    if "priority" not in existing_cols:
+        conn.execute("ALTER TABLE tickets ADD COLUMN priority TEXT DEFAULT 'Normal'")
+    if "assigned_department" not in existing_cols:
+        conn.execute("ALTER TABLE tickets ADD COLUMN assigned_department TEXT")
+    conn.commit()
+    tickets = conn.execute("SELECT * FROM tickets ORDER BY created_at ASC").fetchall()
+    conn.close()
+
+    fc = build_forecast(tickets)
+    return render_template("forecast.html",
+                           username=session["username"],
+                           fc=fc)
+
+
+# =========================
+# GOVERNANCE
+# =========================
+
+@app.route("/governance")
+@admin_required
+def governance():
+    conn = get_db()
+    init_governance_table(conn)
+    existing_cols = [row[1] for row in conn.execute("PRAGMA table_info(tickets)").fetchall()]
+    if "priority" not in existing_cols:
+        conn.execute("ALTER TABLE tickets ADD COLUMN priority TEXT DEFAULT 'Normal'")
+    if "assigned_department" not in existing_cols:
+        conn.execute("ALTER TABLE tickets ADD COLUMN assigned_department TEXT")
+    conn.commit()
+
+    tickets   = conn.execute("SELECT * FROM tickets ORDER BY id DESC").fetchall()
+    audit_log = conn.execute(
+        "SELECT * FROM governance_log ORDER BY id DESC LIMIT 50"
+    ).fetchall()
+    conn.close()
+
+    gov = run_governance_audit(tickets)
+
+    # Log the audit run itself
+    _gc = get_db()
+    log_governance_event(_gc, "audit_run",
+        f"Governance audit executed — risk score={gov['risk_score']}, "
+        f"active_flags={len(gov['active_risks'])}, avg_confidence={gov['avg_confidence']}%",
+        session.get("username", "admin"))
+    _gc.close()
+
+    return render_template("governance.html",
+                           username=session["username"],
+                           gov=gov,
+                           audit_log=audit_log)
+
+
+
+# =========================
+# WORKFLOW AUTOMATION
+# =========================
+
+@app.route("/workflow")
+@admin_required
+def workflow():
+    conn = get_db()
+    init_workflow_tables(conn)
+
+    tickets      = conn.execute("SELECT * FROM tickets ORDER BY id DESC").fetchall()
+    approvals_db = conn.execute("""
+        SELECT a.*, t.ticket_text, t.category, t.priority, t.assigned_department, t.sla_due
+        FROM approvals a JOIN tickets t ON a.ticket_id = t.id
+        ORDER BY a.id DESC LIMIT 10
+    """).fetchall()
+    notifications = conn.execute(
+        "SELECT * FROM notifications ORDER BY id DESC LIMIT 30"
+    ).fetchall()
+    workflow_log = conn.execute(
+        "SELECT * FROM workflow_log ORDER BY id DESC LIMIT 40"
+    ).fetchall()
+    conn.close()
+
+    from datetime import datetime, timedelta
+    now = datetime.now()
+
+    pending_approvals = [dict(a) for a in approvals_db if a["status"] == "pending"]
+    pending_count = len(pending_approvals)
+
+    sla_breached = 0
+    sla_tickets  = []
+    for t in tickets:
+        if t["status"] in ("Open", "In Progress") and t["sla_due"]:
+            sla_info = get_sla_status(t["sla_due"])
+            if sla_info["sla_class"] == "sla-breach":
+                sla_breached += 1
+            td = dict(t)
+            td["sla_info"] = sla_info
+            sla_tickets.append(td)
+
+    sla_tickets.sort(key=lambda x: x["sla_due"] or "9999")
+
+    approved_n  = sum(1 for a in approvals_db if a["status"] == "approved")
+
+    kpis = {
+        "total_automated":   len(tickets),
+        "pending_approvals": pending_count,
+        "approved":          approved_n,
+        "sla_breached":      sla_breached,
+        "notifications_sent": conn.execute if False else 0,
+    }
+    # reopen conn just for notifications count
+    _c = get_db()
+    kpis["notifications_sent"] = _c.execute("SELECT COUNT(*) FROM notifications").fetchone()[0]
+    _c.close()
+
+    import os as _os
+    email_configured = bool(_os.environ.get("SMTP_USER") and _os.environ.get("SMTP_PASS"))
+
+    return render_template("workflow.html",
+                           username=session["username"],
+                           kpis=kpis,
+                           routing_rules=ROUTING_RULES,
+                           pending_approvals=pending_approvals,
+                           pending_count=pending_count,
+                           sla_tickets=sla_tickets[:20],
+                           notifications=notifications,
+                           workflow_log=workflow_log,
+                           email_configured=email_configured)
+
+
+# =========================
+# APPROVALS QUEUE
+# =========================
+
+@app.route("/approvals")
+@admin_required
+def approvals():
+    conn = get_db()
+    init_workflow_tables(conn)
+    rows = conn.execute("""
+        SELECT a.*, t.ticket_text, t.category, t.priority,
+               t.assigned_department, t.sla_due
+        FROM approvals a JOIN tickets t ON a.ticket_id = t.id
+        ORDER BY CASE a.status WHEN 'pending' THEN 0 ELSE 1 END, a.id DESC
+    """).fetchall()
+    conn.close()
+
+    total    = len(rows)
+    pending  = sum(1 for r in rows if r["status"] == "pending")
+    approved = sum(1 for r in rows if r["status"] == "approved")
+    rejected = sum(1 for r in rows if r["status"] == "rejected")
+    apr_rate = round(approved / (approved + rejected) * 100) if (approved + rejected) > 0 else 0
+
+    return render_template("approvals.html",
+                           username=session["username"],
+                           approvals=rows,
+                           stats={"total": total, "pending": pending,
+                                  "approved": approved, "rejected": rejected,
+                                  "approval_rate": apr_rate})
+
+
+@app.route("/approve/<int:ticket_id>", methods=["POST"])
+@admin_required
+def approve_ticket(ticket_id):
+    decision = request.form.get("decision")
+    note     = request.form.get("note", "")
+    if decision not in ("approved", "rejected"):
+        return "Invalid decision", 400
+
+    conn = get_db()
+    init_workflow_tables(conn)
+    ticket = conn.execute("SELECT * FROM tickets WHERE id=?", (ticket_id,)).fetchone()
+    if ticket:
+        emp = conn.execute(
+            "SELECT email FROM users WHERE id=?", (ticket["user_id"],)
+        ).fetchone()
+        run_approval_workflow(conn, ticket_id, decision,
+                              reviewer=session["username"],
+                              employee_email=emp["email"] if emp else None,
+                              employee_name=ticket["employee_name"],
+                              category=ticket["category"],
+                              note=note)
+    conn.close()
+    return redirect("/approvals")
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0")
