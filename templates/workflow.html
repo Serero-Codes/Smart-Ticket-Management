@@ -1,207 +1,981 @@
-{% extends "base.html" %}
-{% block title %}Workflow Automation{% endblock %}
-
-{% block head %}
+{% extends "base.html" %} {% block title %}Workflow Automation{% endblock %} {% block head %}
 <style>
-/* ── Page layout ── */
-.wf-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
-.wf-grid.three { grid-template-columns: 1fr 1fr 1fr; }
-.wf-grid.full  { grid-template-columns: 1fr; }
-
-.wf-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 24px;
-    box-shadow: var(--shadow-sm);
-    animation: fadeUp 0.5s cubic-bezier(0.16,1,0.3,1) both;
-    transition: background 0.35s, border-color 0.35s;
-}
-
-.wf-card:nth-child(1){animation-delay:0.05s}
-.wf-card:nth-child(2){animation-delay:0.10s}
-.wf-card:nth-child(3){animation-delay:0.15s}
-.wf-card:nth-child(4){animation-delay:0.20s}
-
-@keyframes fadeUp {
-    from { opacity: 0; transform: translateY(12px); }
-    to   { opacity: 1; transform: translateY(0); }
-}
-
-.wf-card-title { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
-.wf-card-sub   { font-size: 11px; color: var(--muted); margin-bottom: 20px; }
-
-/* ── KPI strip ── */
-.wf-kpi-grid {
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 14px;
-    margin-bottom: 22px;
-}
-
-.wf-kpi {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 16px;
-    text-align: center;
-    position: relative;
-    overflow: hidden;
-    box-shadow: var(--shadow-sm);
-    animation: fadeUp 0.5s cubic-bezier(0.16,1,0.3,1) both;
-    transition: background 0.35s, border-color 0.35s;
-}
-
-.wf-kpi::before {
-    content:''; position:absolute; top:0;left:0;right:0;height:3px;border-radius:12px 12px 0 0;
-}
-.wf-kpi:nth-child(1)::before{background:linear-gradient(90deg,#2563eb,#60a5fa);animation-delay:0.04s}
-.wf-kpi:nth-child(2)::before{background:linear-gradient(90deg,#f59e0b,#fcd34d);animation-delay:0.08s}
-.wf-kpi:nth-child(3)::before{background:linear-gradient(90deg,#10b981,#6ee7b7);animation-delay:0.12s}
-.wf-kpi:nth-child(4)::before{background:linear-gradient(90deg,#ef4444,#fca5a5);animation-delay:0.16s}
-.wf-kpi:nth-child(5)::before{background:linear-gradient(90deg,#8b5cf6,#c4b5fd);animation-delay:0.20s}
-.wf-kpi:nth-child(1){animation-delay:0.04s}
-.wf-kpi:nth-child(2){animation-delay:0.08s}
-.wf-kpi:nth-child(3){animation-delay:0.12s}
-.wf-kpi:nth-child(4){animation-delay:0.16s}
-.wf-kpi:nth-child(5){animation-delay:0.20s}
-
-.wf-kpi-val   { font-size: 32px; font-weight: 800; color: var(--text); line-height: 1; letter-spacing: -0.03em; }
-.wf-kpi-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-top: 7px; }
-
-/* ── Routing rules table ── */
-.rules-table { width: 100%; border-collapse: collapse; }
-.rules-table th {
-    font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
-    color: var(--muted); padding: 0 8px 12px 0; text-align: left; border-bottom: 1px solid var(--border);
-}
-.rules-table td {
-    padding: 13px 8px 13px 0; font-size: 13px; color: var(--text2);
-    border-bottom: 1px solid var(--border); vertical-align: middle;
-}
-.rules-table tr:last-child td { border-bottom: none; }
-.rules-table td:first-child { font-weight: 700; color: var(--text); }
-
-.sla-chip {
-    display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px;
-    border-radius: 20px; font-size: 11px; font-weight: 600; border: 1px solid;
-}
-.sla-chip.ok     { color: var(--closed); background: rgba(16,185,129,0.08); border-color: rgba(16,185,129,0.2); }
-.sla-chip.warn   { color: var(--warn);   background: rgba(245,158,11,0.08); border-color: rgba(245,158,11,0.2); }
-.sla-chip.breach { color: var(--error);  background: rgba(239,68,68,0.08); border-color: rgba(239,68,68,0.2); }
-.sla-chip.none   { color: var(--muted);  background: var(--surface3); border-color: var(--border); }
-
-.approval-badge {
-    display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600;
-    padding: 3px 9px; border-radius: 10px;
-}
-.approval-badge.yes { color: var(--warn);   background: rgba(245,158,11,0.1); }
-.approval-badge.no  { color: var(--muted);  background: var(--surface3); }
-
-/* ── Approval queue ── */
-.approval-list { display: flex; flex-direction: column; gap: 10px; }
-
-.approval-item {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: 14px;
-    align-items: center;
-    padding: 14px 16px;
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    transition: border-color 0.2s, background 0.2s;
-}
-
-.approval-item:hover { border-color: var(--accent); }
-.approval-item.pending { border-left: 3px solid var(--warn); }
-.approval-item.approved{ border-left: 3px solid var(--closed); }
-.approval-item.rejected{ border-left: 3px solid var(--error); }
-
-.approval-item-left  { display: flex; flex-direction: column; gap: 4px; }
-.approval-item-id    { font-size: 11px; font-weight: 700; color: var(--muted); }
-.approval-item-text  { font-size: 13px; font-weight: 500; color: var(--text); }
-.approval-item-meta  { font-size: 11px; color: var(--muted); display: flex; gap: 10px; flex-wrap: wrap; }
-.approval-item-right { display: flex; gap: 7px; align-items: center; flex-shrink: 0; }
-
-.btn-approve {
-    padding: 7px 14px; background: var(--closed); color: #fff;
-    font-family: 'Plus Jakarta Sans', sans-serif; font-size: 12px; font-weight: 700;
-    border: none; border-radius: 8px; cursor: pointer;
-    transition: opacity 0.2s; white-space: nowrap;
-}
-.btn-approve:hover { opacity: 0.85; }
-
-.btn-reject {
-    padding: 7px 14px; background: var(--surface3); color: var(--error);
-    font-family: 'Plus Jakarta Sans', sans-serif; font-size: 12px; font-weight: 700;
-    border: 1px solid rgba(239,68,68,0.25); border-radius: 8px; cursor: pointer;
-    transition: background 0.2s; white-space: nowrap;
-}
-.btn-reject:hover { background: rgba(239,68,68,0.08); }
-
-.status-pill {
-    display: inline-flex; align-items: center; gap: 5px; padding: 5px 12px;
-    border-radius: 20px; font-size: 11px; font-weight: 700; border: 1px solid;
-}
-.pill-pending  { color: var(--warn);   background: rgba(245,158,11,0.08); border-color: rgba(245,158,11,0.2); }
-.pill-approved { color: var(--closed); background: rgba(16,185,129,0.08); border-color: rgba(16,185,129,0.2); }
-.pill-rejected { color: var(--error);  background: rgba(239,68,68,0.08);  border-color: rgba(239,68,68,0.2);  }
-
-/* ── Notification log ── */
-.notif-list { display: flex; flex-direction: column; gap: 0; }
-
-.notif-row {
-    display: grid;
-    grid-template-columns: 70px 110px 80px 1fr 70px;
-    gap: 12px;
-    padding: 11px 0;
-    border-bottom: 1px solid var(--border);
-    font-size: 12px;
-    align-items: start;
-}
-.notif-row:last-child { border-bottom: none; }
-.notif-id      { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--muted); }
-.notif-recip   { color: var(--text2); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.notif-subj    { color: var(--text2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.notif-status  { font-size: 11px; font-weight: 600; text-align: right; }
-.notif-status.sent      { color: var(--closed); }
-.notif-status.simulated { color: var(--muted);  }
-.notif-status.failed    { color: var(--error);  }
-
-/* ── Workflow log ── */
-.wf-log { display: flex; flex-direction: column; gap: 0; }
-.wf-log-row {
-    display: grid; grid-template-columns: 70px 150px 160px 1fr; gap: 12px;
-    padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 12px; align-items: start;
-}
-.wf-log-row:last-child { border-bottom: none; }
-.wf-log-id   { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--muted); }
-.wf-log-evt  { font-weight: 700; color: var(--accent); }
-.wf-log-time { color: var(--muted); font-size: 11px; }
-.wf-log-det  { color: var(--text2); line-height: 1.5; }
-
-.section-hd {
-    font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.12em;
-    color: var(--accent); margin-bottom: 16px; display: flex; align-items: center; gap: 10px;
-}
-.section-hd::after { content: ''; flex: 1; height: 1px; background: var(--border); }
-
-/* ── Email config notice ── */
-.email-config-banner {
-    display: flex; align-items: flex-start; gap: 14px;
-    padding: 14px 18px; border-radius: 12px; margin-bottom: 20px;
-    background: rgba(245,158,11,0.06);
-    border: 1px solid rgba(245,158,11,0.2);
-    border-left: 3px solid var(--warn);
-    animation: fadeUp 0.4s cubic-bezier(0.16,1,0.3,1) 0.02s both;
-}
-
-.empty-state { text-align:center; padding:32px; color:var(--muted); font-size:13px; }
+    /* ── Page layout ── */
+    
+    .wf-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+        margin-bottom: 20px;
+    }
+    
+    .wf-grid.three {
+        grid-template-columns: 1fr 1fr 1fr;
+    }
+    
+    .wf-grid.full {
+        grid-template-columns: 1fr;
+    }
+    
+    .wf-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 24px;
+        box-shadow: var(--shadow-sm);
+        animation: fadeUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+        transition: background 0.35s, border-color 0.35s;
+    }
+    
+    .wf-card:nth-child(1) {
+        animation-delay: 0.05s
+    }
+    
+    .wf-card:nth-child(2) {
+        animation-delay: 0.10s
+    }
+    
+    .wf-card:nth-child(3) {
+        animation-delay: 0.15s
+    }
+    
+    .wf-card:nth-child(4) {
+        animation-delay: 0.20s
+    }
+    
+    @keyframes fadeUp {
+        from {
+            opacity: 0;
+            transform: translateY(12px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    .wf-card-title {
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--text);
+        margin-bottom: 4px;
+    }
+    
+    .wf-card-sub {
+        font-size: 11px;
+        color: var(--muted);
+        margin-bottom: 20px;
+    }
+    /* ── KPI strip ── */
+    
+    .wf-kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 12px;
+        margin-bottom: 22px;
+    }
+    
+    .wf-kpi {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 16px;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+        box-shadow: var(--shadow-sm);
+        animation: fadeUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+        transition: background 0.35s, border-color 0.35s, transform 0.2s;
+    }
+    
+    .wf-kpi:hover {
+        transform: translateY(-2px);
+    }
+    
+    .wf-kpi::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        border-radius: 12px 12px 0 0;
+    }
+    
+    .wf-kpi:nth-child(1)::before {
+        background: linear-gradient(90deg, #2563eb, #60a5fa)
+    }
+    
+    .wf-kpi:nth-child(2)::before {
+        background: linear-gradient(90deg, #f59e0b, #fcd34d)
+    }
+    
+    .wf-kpi:nth-child(3)::before {
+        background: linear-gradient(90deg, #10b981, #6ee7b7)
+    }
+    
+    .wf-kpi:nth-child(4)::before {
+        background: linear-gradient(90deg, #ef4444, #fca5a5)
+    }
+    
+    .wf-kpi:nth-child(5)::before {
+        background: linear-gradient(90deg, #8b5cf6, #c4b5fd)
+    }
+    
+    .wf-kpi:nth-child(6)::before {
+        background: linear-gradient(90deg, #06b6d4, #67e8f9)
+    }
+    
+    .wf-kpi:nth-child(1) {
+        animation-delay: 0.04s
+    }
+    
+    .wf-kpi:nth-child(2) {
+        animation-delay: 0.08s
+    }
+    
+    .wf-kpi:nth-child(3) {
+        animation-delay: 0.12s
+    }
+    
+    .wf-kpi:nth-child(4) {
+        animation-delay: 0.16s
+    }
+    
+    .wf-kpi:nth-child(5) {
+        animation-delay: 0.20s
+    }
+    
+    .wf-kpi:nth-child(6) {
+        animation-delay: 0.24s
+    }
+    
+    .wf-kpi-val {
+        font-size: 30px;
+        font-weight: 800;
+        color: var(--text);
+        line-height: 1;
+        letter-spacing: -0.03em;
+    }
+    
+    .wf-kpi-label {
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+        margin-top: 6px;
+    }
+    /* ── Pipeline visualizer ── */
+    
+    .pipeline-wrap {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 24px;
+        margin-bottom: 20px;
+        box-shadow: var(--shadow-sm);
+        animation: fadeUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both;
+    }
+    
+    .pipeline-title {
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--text);
+        margin-bottom: 4px;
+    }
+    
+    .pipeline-sub {
+        font-size: 11px;
+        color: var(--muted);
+        margin-bottom: 22px;
+    }
+    
+    .pipeline {
+        display: flex;
+        align-items: center;
+        gap: 0;
+        overflow-x: auto;
+        padding-bottom: 8px;
+    }
+    
+    .pipeline-step {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        flex: 1;
+        min-width: 100px;
+        animation: fadeUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+    
+    .pipeline-step:nth-child(1) {
+        animation-delay: 0.15s
+    }
+    
+    .pipeline-step:nth-child(3) {
+        animation-delay: 0.20s
+    }
+    
+    .pipeline-step:nth-child(5) {
+        animation-delay: 0.25s
+    }
+    
+    .pipeline-step:nth-child(7) {
+        animation-delay: 0.30s
+    }
+    
+    .pipeline-step:nth-child(9) {
+        animation-delay: 0.35s
+    }
+    
+    .pipeline-step:nth-child(11) {
+        animation-delay: 0.40s
+    }
+    
+    .pipeline-node {
+        width: 52px;
+        height: 52px;
+        border-radius: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+        position: relative;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    
+    .pipeline-node:hover {
+        transform: scale(1.08);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    }
+    
+    .pipeline-node.submit {
+        background: linear-gradient(135deg, #2563eb, #3b82f6);
+    }
+    
+    .pipeline-node.classify {
+        background: linear-gradient(135deg, #7c3aed, #8b5cf6);
+    }
+    
+    .pipeline-node.route {
+        background: linear-gradient(135deg, #0891b2, #06b6d4);
+    }
+    
+    .pipeline-node.sla {
+        background: linear-gradient(135deg, #d97706, #f59e0b);
+    }
+    
+    .pipeline-node.approve {
+        background: linear-gradient(135deg, #dc2626, #ef4444);
+    }
+    
+    .pipeline-node.notify {
+        background: linear-gradient(135deg, #059669, #10b981);
+    }
+    
+    .pipeline-label {
+        font-size: 10px;
+        font-weight: 700;
+        text-align: center;
+        color: var(--text2);
+        line-height: 1.3;
+    }
+    
+    .pipeline-desc {
+        font-size: 9px;
+        text-align: center;
+        color: var(--muted);
+        line-height: 1.4;
+    }
+    
+    .pipeline-arrow {
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        padding: 0 4px;
+        color: var(--muted);
+        font-size: 16px;
+        padding-bottom: 28px;
+    }
+    /* ── Tabs ── */
+    
+    .tab-bar {
+        display: flex;
+        gap: 4px;
+        border-bottom: 1px solid var(--border);
+        margin-bottom: 20px;
+    }
+    
+    .tab-btn {
+        padding: 8px 16px;
+        font-size: 12px;
+        font-weight: 700;
+        color: var(--muted);
+        background: none;
+        border: none;
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -1px;
+        transition: color 0.2s, border-color 0.2s;
+        font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    
+    .tab-btn.active {
+        color: var(--accent);
+        border-bottom-color: var(--accent);
+    }
+    
+    .tab-btn:hover:not(.active) {
+        color: var(--text2);
+    }
+    
+    .tab-pane {
+        display: none;
+    }
+    
+    .tab-pane.active {
+        display: block;
+    }
+    /* ── Routing rules ── */
+    
+    .rules-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    
+    .rules-table th {
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+        padding: 0 8px 12px 0;
+        text-align: left;
+        border-bottom: 1px solid var(--border);
+    }
+    
+    .rules-table td {
+        padding: 13px 8px 13px 0;
+        font-size: 13px;
+        color: var(--text2);
+        border-bottom: 1px solid var(--border);
+        vertical-align: middle;
+    }
+    
+    .rules-table tr:last-child td {
+        border-bottom: none;
+    }
+    
+    .rules-table td:first-child {
+        font-weight: 700;
+        color: var(--text);
+    }
+    
+    .sla-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 4px 10px;
+        border-radius: 20px;
+        font-size: 11px;
+        font-weight: 600;
+        border: 1px solid;
+    }
+    
+    .sla-chip.ok {
+        color: var(--closed);
+        background: rgba(16, 185, 129, 0.08);
+        border-color: rgba(16, 185, 129, 0.2);
+    }
+    
+    .sla-chip.warn {
+        color: var(--warn);
+        background: rgba(245, 158, 11, 0.08);
+        border-color: rgba(245, 158, 11, 0.2);
+    }
+    
+    .sla-chip.breach {
+        color: var(--error);
+        background: rgba(239, 68, 68, 0.08);
+        border-color: rgba(239, 68, 68, 0.2);
+    }
+    
+    .sla-chip.none {
+        color: var(--muted);
+        background: var(--surface3);
+        border-color: var(--border);
+    }
+    
+    .approval-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 11px;
+        font-weight: 600;
+        padding: 3px 9px;
+        border-radius: 10px;
+    }
+    
+    .approval-badge.yes {
+        color: var(--warn);
+        background: rgba(245, 158, 11, 0.1);
+    }
+    
+    .approval-badge.no {
+        color: var(--muted);
+        background: var(--surface3);
+    }
+    /* ── Approval queue ── */
+    
+    .approval-list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .approval-item {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 14px;
+        align-items: center;
+        padding: 14px 16px;
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        transition: border-color 0.2s, background 0.2s;
+    }
+    
+    .approval-item:hover {
+        border-color: var(--accent);
+    }
+    
+    .approval-item.pending {
+        border-left: 3px solid var(--warn);
+    }
+    
+    .approval-item.approved {
+        border-left: 3px solid var(--closed);
+    }
+    
+    .approval-item.rejected {
+        border-left: 3px solid var(--error);
+    }
+    
+    .approval-item-left {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+    
+    .approval-item-id {
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--muted);
+    }
+    
+    .approval-item-text {
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--text);
+    }
+    
+    .approval-item-meta {
+        font-size: 11px;
+        color: var(--muted);
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+    
+    .approval-item-right {
+        display: flex;
+        gap: 7px;
+        align-items: center;
+        flex-shrink: 0;
+    }
+    
+    .btn-approve {
+        padding: 7px 14px;
+        background: var(--closed);
+        color: #fff;
+        font-family: 'Plus Jakarta Sans', sans-serif;
+        font-size: 12px;
+        font-weight: 700;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: opacity 0.2s;
+        white-space: nowrap;
+    }
+    
+    .btn-approve:hover {
+        opacity: 0.85;
+    }
+    
+    .btn-reject {
+        padding: 7px 14px;
+        background: var(--surface3);
+        color: var(--error);
+        font-family: 'Plus Jakarta Sans', sans-serif;
+        font-size: 12px;
+        font-weight: 700;
+        border: 1px solid rgba(239, 68, 68, 0.25);
+        border-radius: 8px;
+        cursor: pointer;
+        transition: background 0.2s;
+        white-space: nowrap;
+    }
+    
+    .btn-reject:hover {
+        background: rgba(239, 68, 68, 0.08);
+    }
+    
+    .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 5px 12px;
+        border-radius: 20px;
+        font-size: 11px;
+        font-weight: 700;
+        border: 1px solid;
+    }
+    
+    .pill-pending {
+        color: var(--warn);
+        background: rgba(245, 158, 11, 0.08);
+        border-color: rgba(245, 158, 11, 0.2);
+    }
+    
+    .pill-approved {
+        color: var(--closed);
+        background: rgba(16, 185, 129, 0.08);
+        border-color: rgba(16, 185, 129, 0.2);
+    }
+    
+    .pill-rejected {
+        color: var(--error);
+        background: rgba(239, 68, 68, 0.08);
+        border-color: rgba(239, 68, 68, 0.2);
+    }
+    /* ── Bulk actions bar ── */
+    
+    .bulk-bar {
+        display: none;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 16px;
+        background: var(--accent-dim);
+        border: 1px solid var(--accent);
+        border-radius: 10px;
+        margin-bottom: 12px;
+        animation: fadeUp 0.3s ease;
+    }
+    
+    .bulk-bar.visible {
+        display: flex;
+    }
+    
+    .bulk-bar-text {
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--accent);
+        flex: 1;
+    }
+    
+    .bulk-btn {
+        padding: 6px 14px;
+        font-size: 12px;
+        font-weight: 700;
+        border-radius: 8px;
+        border: none;
+        cursor: pointer;
+        font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    
+    .bulk-btn.approve {
+        background: var(--closed);
+        color: #fff;
+    }
+    
+    .bulk-btn.reject {
+        background: rgba(239, 68, 68, 0.1);
+        color: var(--error);
+        border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+    /* ── SLA tracker ── */
+    
+    .sla-progress-bar {
+        height: 4px;
+        border-radius: 4px;
+        background: var(--surface3);
+        overflow: hidden;
+        margin-top: 6px;
+    }
+    
+    .sla-progress-fill {
+        height: 100%;
+        border-radius: 4px;
+        transition: width 0.5s ease;
+    }
+    
+    .fill-ok {
+        background: var(--closed);
+    }
+    
+    .fill-warn {
+        background: var(--warn);
+    }
+    
+    .fill-breach {
+        background: var(--error);
+    }
+    /* ── Notification log ── */
+    
+    .notif-list {
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .notif-row {
+        display: grid;
+        grid-template-columns: 64px 130px 70px 1fr 70px;
+        gap: 12px;
+        padding: 11px 0;
+        border-bottom: 1px solid var(--border);
+        font-size: 12px;
+        align-items: center;
+    }
+    
+    .notif-row:last-child {
+        border-bottom: none;
+    }
+    
+    .notif-id {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 11px;
+        color: var(--muted);
+    }
+    
+    .notif-recip {
+        color: var(--text2);
+        font-weight: 500;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    
+    .notif-subj {
+        color: var(--text2);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    
+    .notif-status.sent {
+        color: var(--closed);
+        font-weight: 700;
+        font-size: 11px;
+    }
+    
+    .notif-status.simulated {
+        color: var(--muted);
+        font-size: 11px;
+    }
+    
+    .notif-status.failed {
+        color: var(--error);
+        font-weight: 700;
+        font-size: 11px;
+    }
+    /* ── Workflow log ── */
+    
+    .wf-log-row {
+        display: grid;
+        grid-template-columns: 64px 170px 130px 1fr;
+        gap: 12px;
+        padding: 10px 0;
+        border-bottom: 1px solid var(--border);
+        font-size: 12px;
+        align-items: start;
+    }
+    
+    .wf-log-row:last-child {
+        border-bottom: none;
+    }
+    
+    .wf-log-id {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 11px;
+        color: var(--muted);
+    }
+    
+    .wf-log-evt {
+        font-weight: 700;
+        color: var(--accent);
+        font-size: 11px;
+    }
+    
+    .wf-log-time {
+        color: var(--muted);
+        font-size: 11px;
+    }
+    
+    .wf-log-det {
+        color: var(--text2);
+        line-height: 1.5;
+    }
+    
+    .section-hd {
+        font-size: 11px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: var(--accent);
+        margin-bottom: 16px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    
+    .section-hd::after {
+        content: '';
+        flex: 1;
+        height: 1px;
+        background: var(--border);
+    }
+    /* ── Email config banner ── */
+    
+    .email-config-banner {
+        display: flex;
+        align-items: flex-start;
+        gap: 14px;
+        padding: 14px 18px;
+        border-radius: 12px;
+        margin-bottom: 20px;
+        background: rgba(245, 158, 11, 0.06);
+        border: 1px solid rgba(245, 158, 11, 0.2);
+        border-left: 3px solid var(--warn);
+        animation: fadeUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) 0.02s both;
+    }
+    /* ── Escalation alert ── */
+    
+    .esc-banner {
+        display: flex;
+        align-items: flex-start;
+        gap: 14px;
+        padding: 14px 18px;
+        border-radius: 12px;
+        margin-bottom: 20px;
+        background: rgba(239, 68, 68, 0.06);
+        border: 1px solid rgba(239, 68, 68, 0.2);
+        border-left: 3px solid var(--error);
+        animation: fadeUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+    /* ── Rule builder modal ── */
+    
+    .modal-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        align-items: center;
+        justify-content: center;
+        backdrop-filter: blur(4px);
+    }
+    
+    .modal-overlay.open {
+        display: flex;
+    }
+    
+    .modal-box {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        padding: 32px;
+        width: 520px;
+        max-width: 95vw;
+        box-shadow: var(--shadow-lg);
+        animation: fadeUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    
+    .modal-title {
+        font-size: 16px;
+        font-weight: 800;
+        color: var(--text);
+        margin-bottom: 20px;
+    }
+    
+    .modal-field {
+        margin-bottom: 16px;
+    }
+    
+    .modal-label {
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+        display: block;
+        margin-bottom: 6px;
+    }
+    
+    .modal-input {
+        width: 100%;
+        padding: 10px 14px;
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        font-size: 13px;
+        color: var(--text);
+        font-family: 'Plus Jakarta Sans', sans-serif;
+        transition: border-color 0.2s;
+    }
+    
+    .modal-input:focus {
+        outline: none;
+        border-color: var(--accent);
+    }
+    
+    .modal-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+    }
+    
+    .modal-footer {
+        display: flex;
+        gap: 10px;
+        justify-content: flex-end;
+        margin-top: 24px;
+    }
+    
+    .modal-close-btn {
+        padding: 9px 20px;
+        background: var(--surface3);
+        color: var(--text2);
+        font-family: 'Plus Jakarta Sans', sans-serif;
+        font-size: 13px;
+        font-weight: 700;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        cursor: pointer;
+    }
+    
+    .modal-save-btn {
+        padding: 9px 20px;
+        background: var(--accent);
+        color: #fff;
+        font-family: 'Plus Jakarta Sans', sans-serif;
+        font-size: 13px;
+        font-weight: 700;
+        border: none;
+        border-radius: 10px;
+        cursor: pointer;
+        transition: opacity 0.2s;
+    }
+    
+    .modal-save-btn:hover {
+        opacity: 0.88;
+    }
+    /* ── Toast ── */
+    
+    .toast {
+        position: fixed;
+        bottom: 28px;
+        right: 28px;
+        z-index: 9999;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 14px 20px;
+        box-shadow: var(--shadow-lg);
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        transform: translateY(80px);
+        opacity: 0;
+        transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        max-width: 360px;
+    }
+    
+    .toast.show {
+        transform: translateY(0);
+        opacity: 1;
+    }
+    
+    .toast-icon {
+        font-size: 18px;
+        flex-shrink: 0;
+    }
+    /* ── Action bar ── */
+    
+    .action-bar {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+        margin-bottom: 20px;
+    }
+    
+    .btn-esc {
+        padding: 9px 18px;
+        background: rgba(239, 68, 68, 0.1);
+        color: var(--error);
+        font-family: 'Plus Jakarta Sans', sans-serif;
+        font-size: 12px;
+        font-weight: 700;
+        border: 1px solid rgba(239, 68, 68, 0.3);
+        border-radius: 10px;
+        cursor: pointer;
+        transition: background 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    
+    .btn-esc:hover {
+        background: rgba(239, 68, 68, 0.18);
+    }
+    
+    .btn-rule {
+        padding: 9px 18px;
+        background: var(--accent-dim);
+        color: var(--accent);
+        font-family: 'Plus Jakarta Sans', sans-serif;
+        font-size: 12px;
+        font-weight: 700;
+        border: 1px solid rgba(37, 99, 235, 0.25);
+        border-radius: 10px;
+        cursor: pointer;
+        transition: background 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    
+    .btn-rule:hover {
+        background: rgba(37, 99, 235, 0.15);
+    }
+    
+    .empty-state {
+        text-align: center;
+        padding: 32px;
+        color: var(--muted);
+        font-size: 13px;
+    }
+    
+    .checkbox-col {
+        width: 36px;
+    }
 </style>
-{% endblock %}
-
-{% block content %}
+{% endblock %} {% block content %}
 <div class="page-header animate-in">
     <div class="page-header-left">
         <p>Admin overview</p>
@@ -217,22 +991,40 @@
     </a>
 </div>
 
-<!-- Email config notice if SMTP not set -->
+<!-- Email config notice -->
 {% if not email_configured %}
 <div class="email-config-banner">
     <span style="font-size:18px;flex-shrink:0;margin-top:1px">📧</span>
     <div>
         <p style="font-size:12px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:var(--warn);margin:0 0 4px">Email Not Configured — Simulation Mode</p>
         <p style="font-size:13px;color:var(--text2);line-height:1.6;margin:0">
-            Notifications are being <strong style="color:var(--text)">simulated</strong> (logged but not sent).
-            Set <code>SMTP_HOST</code>, <code>SMTP_USER</code>, <code>SMTP_PASS</code>, and <code>ADMIN_EMAIL</code>
-            environment variables to enable live email delivery.
+            Notifications are being <strong style="color:var(--text)">simulated</strong> (logged but not sent). Set <code>SMTP_HOST</code>, <code>SMTP_USER</code>, <code>SMTP_PASS</code> and <code>ADMIN_EMAIL</code> environment variables to enable live
+            email delivery.
         </p>
     </div>
 </div>
 {% endif %}
 
-<!-- KPI strip -->
+<!-- SLA breach alert -->
+{% set breach_count = sla_tickets | selectattr('sla_info.sla_class', 'equalto', 'sla-breach') | list | length %} {% if breach_count > 0 %}
+<div class="esc-banner">
+    <span style="font-size:20px;flex-shrink:0">🚨</span>
+    <div style="flex:1">
+        <p style="font-size:12px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:var(--error);margin:0 0 4px">{{ breach_count }} SLA Breach{{ 'es' if breach_count > 1 else '' }} Detected</p>
+        <p style="font-size:13px;color:var(--text2);margin:0">Tickets have exceeded their SLA window. Run escalation to auto-notify admins.</p>
+    </div>
+    <button class="btn-esc" onclick="runEscalation()">🔺 Run Escalation Now</button>
+</div>
+{% endif %}
+
+<!-- Action bar -->
+<div class="action-bar">
+    <button class="btn-rule" onclick="openModal()">＋ New Routing Rule</button>
+    <button class="btn-esc" onclick="runEscalation()">🔺 Escalation Check</button>
+    <span style="font-size:12px;color:var(--muted);margin-left:auto">Last refreshed: <span id="refreshTime">just now</span></span>
+</div>
+
+<!-- KPI Strip -->
 <div class="wf-kpi-grid">
     <div class="wf-kpi">
         <p class="wf-kpi-val">{{ kpis.total_automated }}</p>
@@ -252,93 +1044,155 @@
     </div>
     <div class="wf-kpi">
         <p class="wf-kpi-val">{{ kpis.notifications_sent }}</p>
-        <p class="wf-kpi-label">Notifications Sent</p>
+        <p class="wf-kpi-label">Notifications</p>
+    </div>
+    <div class="wf-kpi">
+        <p class="wf-kpi-val" id="kpiEscalations" style="color:var(--info)">0</p>
+        <p class="wf-kpi-label">Escalations</p>
     </div>
 </div>
 
-<!-- Routing rules + Approval queue -->
-<div class="wf-grid">
-    <!-- Routing Rules -->
-    <div class="wf-card">
-        <p class="wf-card-title">Auto-Routing Rules</p>
-        <p class="wf-card-sub">Category → Department mapping with SLA windows</p>
+<!-- Automation Pipeline Visualizer -->
+<div class="pipeline-wrap">
+    <p class="pipeline-title">⚡ Automation Pipeline</p>
+    <p class="pipeline-sub">Every ticket flows through this automated workflow engine end-to-end</p>
+    <div class="pipeline">
+        <div class="pipeline-step">
+            <div class="pipeline-node submit">📝</div>
+            <div class="pipeline-label">Ticket<br>Submitted</div>
+            <div class="pipeline-desc">Employee submits<br>via portal</div>
+        </div>
+        <div class="pipeline-arrow">→</div>
+        <div class="pipeline-step">
+            <div class="pipeline-node classify">🤖</div>
+            <div class="pipeline-label">AI<br>Classify</div>
+            <div class="pipeline-desc">ML categorises<br>+ detects urgency</div>
+        </div>
+        <div class="pipeline-arrow">→</div>
+        <div class="pipeline-step">
+            <div class="pipeline-node route">🗺️</div>
+            <div class="pipeline-label">Auto<br>Route</div>
+            <div class="pipeline-desc">Routed to correct<br>department</div>
+        </div>
+        <div class="pipeline-arrow">→</div>
+        <div class="pipeline-step">
+            <div class="pipeline-node sla">⏱️</div>
+            <div class="pipeline-label">SLA<br>Assigned</div>
+            <div class="pipeline-desc">SLA deadline set<br>per category rule</div>
+        </div>
+        <div class="pipeline-arrow">→</div>
+        <div class="pipeline-step">
+            <div class="pipeline-node approve">✅</div>
+            <div class="pipeline-label">Approval<br>Workflow</div>
+            <div class="pipeline-desc">HR/Finance/Urgent<br>requires approval</div>
+        </div>
+        <div class="pipeline-arrow">→</div>
+        <div class="pipeline-step">
+            <div class="pipeline-node notify">📧</div>
+            <div class="pipeline-label">Notifications<br>Sent</div>
+            <div class="pipeline-desc">Email alerts to<br>employee + admin</div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabs -->
+<div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px;margin-bottom:20px;animation:fadeUp 0.5s cubic-bezier(0.16,1,0.3,1) 0.2s both;">
+    <div class="tab-bar">
+        <button class="tab-btn active" onclick="switchTab('routing',this)">🗺️ Routing Rules</button>
+        <button class="tab-btn" onclick="switchTab('approvals',this)">
+        ✅ Approvals Queue
+        {% if pending_count > 0 %}<span style="background:var(--warn);color:#fff;font-size:9px;font-weight:800;padding:2px 6px;border-radius:8px;margin-left:4px">{{ pending_count }}</span>{% endif %}
+    </button>
+        <button class="tab-btn" onclick="switchTab('sla',this)">⏱️ SLA Tracker</button>
+        <button class="tab-btn" onclick="switchTab('notifications',this)">📧 Notifications</button>
+        <button class="tab-btn" onclick="switchTab('eventlog',this)">📋 Event Log</button>
+    </div>
+
+    <!-- TAB: Routing Rules -->
+    <div id="tab-routing" class="tab-pane active">
         <table class="rules-table">
             <thead>
                 <tr>
                     <th>Category</th>
                     <th>Routes To</th>
-                    <th>SLA</th>
-                    <th>Approval</th>
+                    <th>SLA Window</th>
+                    <th>Approval Required</th>
                     <th>Escalate After</th>
+                    <th>Threshold</th>
                 </tr>
             </thead>
             <tbody>
                 {% for cat, rule in routing_rules.items() %}
                 <tr>
                     <td>{{ rule.icon }} {{ cat }}</td>
-                    <td>{{ rule.department }}</td>
-                    <td>
-                        <span class="sla-chip ok">{{ rule.sla_hours }}h</span>
-                    </td>
+                    <td style="color:var(--text)">{{ rule.department }}</td>
+                    <td><span class="sla-chip ok">{{ rule.sla_hours }}h</span></td>
                     <td>
                         {% if rule.requires_approval or rule.approval_threshold == 'Normal' %}
-                        <span class="approval-badge yes">✓ Required</span>
-                        {% else %}
-                        <span class="approval-badge no">Urgent only</span>
-                        {% endif %}
+                        <span class="approval-badge yes">✓ Always</span> {% else %}
+                        <span class="approval-badge no">Urgent only</span> {% endif %}
                     </td>
-                    <td style="color:var(--muted)">{{ rule.escalate_after_hrs }}h</td>
+                    <td style="color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:12px">{{ rule.escalate_after_hrs }}h</td>
+                    <td>
+                        <span style="font-size:11px;color:{% if rule.approval_threshold == 'Normal' %}var(--warn){% else %}var(--error){% endif %};font-weight:600">
+                        {{ rule.approval_threshold }}
+                    </span>
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
+        <p style="font-size:11px;color:var(--muted);margin-top:16px">💡 Custom rules can be added via the <strong>New Routing Rule</strong> button. Rules override defaults for that category.</p>
     </div>
 
-    <!-- Pending Approval Queue -->
-    <div class="wf-card">
-        <p class="wf-card-title">Approval Queue</p>
-        <p class="wf-card-sub">Tickets requiring review before proceeding</p>
+    <!-- TAB: Approvals Queue -->
+    <div id="tab-approvals" class="tab-pane">
         {% if pending_approvals %}
-        <div class="approval-list">
-            {% for a in pending_approvals[:6] %}
-            <div class="approval-item {{ a.status }}">
+        <div class="bulk-bar" id="bulkBar">
+            <span class="bulk-bar-text"><span id="bulkCount">0</span> selected</span>
+            <button class="bulk-btn approve" onclick="bulkAction('approve')">✓ Approve All Selected</button>
+            <button class="bulk-btn reject" onclick="bulkAction('reject')">✗ Reject All Selected</button>
+        </div>
+        <div class="approval-list" id="approvalList">
+            {% for a in pending_approvals %}
+            <div class="approval-item {{ a.status }}" data-id="{{ a.ticket_id }}">
                 <div class="approval-item-left">
-                    <span class="approval-item-id">Ticket #{{ a.ticket_id }}</span>
-                    <span class="approval-item-text">{{ a.ticket_text[:70] }}{% if a.ticket_text|length > 70 %}…{% endif %}</span>
+                    <div style="display:flex;align-items:center;gap:10px">
+                        <input type="checkbox" class="bulk-check" data-id="{{ a.ticket_id }}" onchange="updateBulkBar()" style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer">
+                        <span class="approval-item-id">Ticket #{{ a.ticket_id }}</span> {% if a.priority == 'Urgent' %}
+                        <span style="font-size:10px;font-weight:700;color:var(--error);background:rgba(239,68,68,0.1);padding:2px 7px;border-radius:6px">URGENT</span> {% endif %}
+                    </div>
+                    <span class="approval-item-text">{{ a.ticket_text[:80] }}{% if a.ticket_text|length > 80 %}…{% endif %}</span>
                     <div class="approval-item-meta">
-                        <span>{{ a.category }}</span>
-                        <span style="color:{% if a.priority=='Urgent' %}var(--error){% else %}var(--muted){% endif %};font-weight:{% if a.priority=='Urgent' %}700{% else %}400{% endif %}">{{ a.priority }}</span>
+                        <span style="background:var(--surface3);padding:2px 7px;border-radius:5px">{{ a.category }}</span>
                         <span>by {{ a.requested_by }}</span>
+                        <span>{{ a.requested_at[:16] }}</span> {% if a.sla_due %}
+                        <span style="color:var(--warn)">SLA: {{ a.sla_due[:16] }}</span> {% endif %}
                     </div>
                 </div>
                 <div class="approval-item-right">
                     {% if a.status == 'pending' %}
-                    <a href="/approvals" class="btn-approve">Review →</a>
+                    <form method="post" action="/approve/{{ a.ticket_id }}" style="display:contents">
+                        <input type="hidden" name="decision" value="approved">
+                        <button type="submit" class="btn-approve">✓ Approve</button>
+                    </form>
+                    <form method="post" action="/approve/{{ a.ticket_id }}" style="display:contents">
+                        <input type="hidden" name="decision" value="rejected">
+                        <button type="submit" class="btn-reject">✗ Reject</button>
+                    </form>
                     {% else %}
-                    <span class="status-pill pill-{{ a.status }}">
-                        {{ a.status | capitalize }}
-                    </span>
-                    {% endif %}
+                    <span class="status-pill pill-{{ a.status }}">{{ a.status | capitalize }}</span> {% endif %}
                 </div>
             </div>
             {% endfor %}
-            {% if pending_approvals|length > 6 %}
-            <a href="/approvals" style="text-align:center;padding:10px;font-size:12px;color:var(--accent);font-weight:600;text-decoration:none;display:block">
-                View all {{ pending_approvals|length }} approvals →
-            </a>
-            {% endif %}
         </div>
         {% else %}
-        <div class="empty-state">✅ No pending approvals</div>
+        <div class="empty-state">✅ No pending approvals — all clear!</div>
         {% endif %}
     </div>
-</div>
 
-<!-- SLA tracker -->
-<div class="wf-grid full">
-    <div class="wf-card">
-        <p class="wf-card-title">SLA Tracker</p>
-        <p class="wf-card-sub">Open tickets — time remaining against SLA commitment</p>
+    <!-- TAB: SLA Tracker -->
+    <div id="tab-sla" class="tab-pane">
         {% if sla_tickets %}
         <table class="rules-table">
             <thead>
@@ -349,14 +1203,14 @@
                     <th>Priority</th>
                     <th>Status</th>
                     <th>SLA Status</th>
+                    <th>Progress</th>
                 </tr>
             </thead>
             <tbody>
-                {% for t in sla_tickets %}
-                {% set sla = t.sla_info %}
+                {% for t in sla_tickets %} {% set sla = t.sla_info %}
                 <tr>
                     <td style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted)">#{{ t.id }}</td>
-                    <td>{{ t.ticket_text[:60] }}{% if t.ticket_text|length > 60 %}…{% endif %}</td>
+                    <td style="max-width:220px">{{ t.ticket_text[:55] }}{% if t.ticket_text|length > 55 %}…{% endif %}</td>
                     <td>{{ t.category }}</td>
                     <td style="color:{% if t.priority=='Urgent' %}var(--error){% else %}var(--muted){% endif %};font-weight:{% if t.priority=='Urgent' %}700{% else %}400{% endif %}">
                         {{ t.priority or 'Normal' }}
@@ -364,23 +1218,25 @@
                     <td>{{ t.status }}</td>
                     <td>
                         <span class="sla-chip {{ sla.sla_class | replace('sla-','') }}">
-                            {{ sla.sla_label }}
-                        </span>
+                        {{ sla.sla_label }}
+                    </span>
+                    </td>
+                    <td style="min-width:80px">
+                        <div class="sla-progress-bar">
+                            <div class="sla-progress-fill fill-{{ sla.sla_class | replace('sla-','') }}" style="width:{% if sla.sla_class == 'sla-breach' %}100{% elif sla.sla_class == 'sla-warn' %}80{% else %}40{% endif %}%"></div>
+                        </div>
                     </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
         {% else %}
-        <div class="empty-state">No open tickets with SLA data yet.</div>
+        <div class="empty-state">No open tickets with SLA data. Submit a ticket to trigger the workflow engine.</div>
         {% endif %}
     </div>
-</div>
 
-<!-- Notification log + workflow log -->
-<div class="wf-grid">
-    <div class="wf-card">
-        <p class="section-hd">Notification Log</p>
+    <!-- TAB: Notifications -->
+    <div id="tab-notifications" class="tab-pane">
         {% if notifications %}
         <div class="notif-list">
             <div class="notif-row" style="font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);padding-bottom:8px;border-bottom:2px solid var(--border)">
@@ -389,22 +1245,24 @@
             {% for n in notifications %}
             <div class="notif-row">
                 <span class="notif-id">#{{ n.ticket_id }}</span>
-                <span class="notif-recip">{{ n.recipient }}</span>
-                <span class="notif-status {{ n.status }}">{{ n.status }}</span>
-                <span class="notif-subj">{{ n.subject[:50] }}{% if n.subject|length > 50 %}…{% endif %}</span>
+                <span class="notif-recip" title="{{ n.recipient }}">{{ n.recipient[:20] }}{% if n.recipient|length > 20 %}…{% endif %}</span>
+                <span class="notif-status {{ n.status }}">
+                {% if n.status == 'sent' %}✉️ sent{% elif n.status == 'simulated' %}🔵 sim{% else %}❌ fail{% endif %}
+            </span>
+                <span class="notif-subj" title="{{ n.subject }}">{{ n.subject[:55] }}{% if n.subject|length > 55 %}…{% endif %}</span>
                 <span style="font-size:11px;color:var(--muted);text-align:right">{{ n.channel }}</span>
             </div>
             {% endfor %}
         </div>
         {% else %}
-        <div class="empty-state">No notifications logged yet.</div>
+        <div class="empty-state">No notifications logged yet. Submit a ticket to trigger email automation.</div>
         {% endif %}
     </div>
 
-    <div class="wf-card">
-        <p class="section-hd">Workflow Event Log</p>
+    <!-- TAB: Event Log -->
+    <div id="tab-eventlog" class="tab-pane">
         {% if workflow_log %}
-        <div class="wf-log">
+        <div>
             {% for w in workflow_log %}
             <div class="wf-log-row">
                 <span class="wf-log-id">#{{ w.ticket_id }}</span>
@@ -419,4 +1277,176 @@
         {% endif %}
     </div>
 </div>
+
+<!-- Rule Builder Modal -->
+<div class="modal-overlay" id="ruleModal">
+    <div class="modal-box">
+        <p class="modal-title">＋ New Routing Rule</p>
+        <div class="modal-grid">
+            <div class="modal-field">
+                <label class="modal-label">Rule Name</label>
+                <input class="modal-input" id="ruleName" placeholder="e.g. IT Urgent Override">
+            </div>
+            <div class="modal-field">
+                <label class="modal-label">Category</label>
+                <select class="modal-input" id="ruleCategory">
+                    <option value="IT">IT</option>
+                    <option value="HR">HR</option>
+                    <option value="Finance">Finance</option>
+                    <option value="Operations">Operations</option>
+                </select>
+            </div>
+            <div class="modal-field">
+                <label class="modal-label">Routes To Department</label>
+                <select class="modal-input" id="ruleDept">
+                    <option value="IT">IT</option>
+                    <option value="HR">HR</option>
+                    <option value="Finance">Finance</option>
+                    <option value="Operations">Operations</option>
+                </select>
+            </div>
+            <div class="modal-field">
+                <label class="modal-label">SLA Window (hours)</label>
+                <input class="modal-input" id="ruleSla" type="number" value="24" min="1">
+            </div>
+            <div class="modal-field">
+                <label class="modal-label">Escalate After (hours)</label>
+                <input class="modal-input" id="ruleEsc" type="number" value="48" min="1">
+            </div>
+            <div class="modal-field" style="display:flex;align-items:center;gap:10px;padding-top:22px">
+                <input type="checkbox" id="ruleApproval" style="width:16px;height:16px;accent-color:var(--accent)">
+                <label for="ruleApproval" class="modal-label" style="margin:0;text-transform:none;letter-spacing:0">Requires Approval</label>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="modal-close-btn" onclick="closeModal()">Cancel</button>
+            <button class="modal-save-btn" onclick="saveRule()">Save Rule</button>
+        </div>
+    </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast">
+    <span class="toast-icon" id="toastIcon">✅</span>
+    <span id="toastMsg">Done</span>
+</div>
+
+<script>
+    // Tab switching
+    function switchTab(name, btn) {
+        document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById('tab-' + name).classList.add('active');
+        btn.classList.add('active');
+    }
+
+    // Toast
+    function showToast(msg, icon = '✅') {
+        const t = document.getElementById('toast');
+        document.getElementById('toastMsg').textContent = msg;
+        document.getElementById('toastIcon').textContent = icon;
+        t.classList.add('show');
+        setTimeout(() => t.classList.remove('show'), 3500);
+    }
+
+    // Bulk selection
+    function updateBulkBar() {
+        const checked = document.querySelectorAll('.bulk-check:checked');
+        const bar = document.getElementById('bulkBar');
+        document.getElementById('bulkCount').textContent = checked.length;
+        if (checked.length > 0) bar.classList.add('visible');
+        else bar.classList.remove('visible');
+    }
+
+    async function bulkAction(type) {
+        const ids = [...document.querySelectorAll('.bulk-check:checked')].map(c => +c.dataset.id);
+        if (!ids.length) return;
+        const note = `Bulk ${type}d by {{ username }}`;
+        const res = await fetch('/api/workflow/bulk_' + type, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                ticket_ids: ids,
+                note
+            })
+        });
+        const data = await res.json();
+        showToast(`${data[type === 'approve' ? 'approved' : 'rejected']} ticket(s) ${type}d`, type === 'approve' ? '✅' : '❌');
+        setTimeout(() => location.reload(), 1200);
+    }
+
+    // Escalation
+    async function runEscalation() {
+        showToast('Running escalation check…', '🔺');
+        const res = await fetch('/api/workflow/escalate', {
+            method: 'POST'
+        });
+        const data = await res.json();
+        if (data.count === 0) {
+            showToast('No new SLA breaches found', '✅');
+        } else {
+            showToast(`${data.count} ticket(s) escalated — admin notified`, '🚨');
+            setTimeout(() => location.reload(), 1800);
+        }
+    }
+
+    // Rule modal
+    function openModal() {
+        document.getElementById('ruleModal').classList.add('open');
+    }
+
+    function closeModal() {
+        document.getElementById('ruleModal').classList.remove('open');
+    }
+
+    async function saveRule() {
+        const payload = {
+            name: document.getElementById('ruleName').value.trim(),
+            category: document.getElementById('ruleCategory').value,
+            department: document.getElementById('ruleDept').value,
+            sla_hours: +document.getElementById('ruleSla').value,
+            escalate_after_hrs: +document.getElementById('ruleEsc').value,
+            requires_approval: document.getElementById('ruleApproval').checked,
+        };
+        if (!payload.name) {
+            showToast('Please enter a rule name', '⚠️');
+            return;
+        }
+        const res = await fetch('/api/workflow/rules', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.status === 'created') {
+            closeModal();
+            showToast('Routing rule created successfully', '✅');
+            setTimeout(() => location.reload(), 1200);
+        } else {
+            showToast(data.error || 'Failed to create rule', '❌');
+        }
+    }
+
+    // Close modal on overlay click
+    document.getElementById('ruleModal').addEventListener('click', function(e) {
+        if (e.target === this) closeModal();
+    });
+
+    // Live stats refresh
+    async function refreshStats() {
+        try {
+            const res = await fetch('/api/workflow/stats');
+            const data = await res.json();
+            const esc = document.getElementById('kpiEscalations');
+            if (esc) esc.textContent = data.escalations;
+            document.getElementById('refreshTime').textContent = new Date().toLocaleTimeString();
+        } catch (e) {}
+    }
+    refreshStats();
+    setInterval(refreshStats, 30000);
+</script>
 {% endblock %}
