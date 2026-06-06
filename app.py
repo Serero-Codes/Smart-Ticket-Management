@@ -9,7 +9,9 @@ from ai_responder import generate_ticket_response
 from forecasting import build_forecast
 from governance import run_governance_audit, log_governance_event, init_governance_table
 from workflow import (init_workflow_tables, run_ticket_workflow, run_status_workflow,
-                      run_approval_workflow, get_sla_status, ROUTING_RULES)
+                      run_approval_workflow, get_sla_status, ROUTING_RULES,
+                      run_escalation_check, bulk_approve, bulk_reject,
+                      create_workflow_rule, update_workflow_rule, toggle_workflow_rule)
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", os.urandom(24))
@@ -827,6 +829,136 @@ def approve_ticket(ticket_id):
                               note=note)
     conn.close()
     return redirect("/approvals")
+
+
+# =========================
+# WORKFLOW AUTOMATION APIs
+# =========================
+
+@app.route("/api/workflow/escalate", methods=["POST"])
+@admin_required
+def api_escalate():
+    """Manually trigger escalation check for all SLA-breached tickets."""
+    conn = get_db()
+    init_workflow_tables(conn)
+    escalated = run_escalation_check(conn, base_url=request.host_url.rstrip("/"))
+    conn.close()
+    return jsonify({"escalated": escalated, "count": len(escalated)})
+
+
+@app.route("/api/workflow/bulk_approve", methods=["POST"])
+@admin_required
+def api_bulk_approve():
+    data = request.get_json(silent=True) or {}
+    ids  = [int(i) for i in (data.get("ticket_ids") or []) if str(i).isdigit()]
+    note = data.get("note", "Bulk approved by admin")
+    if not ids:
+        return jsonify({"error": "No ticket IDs provided"}), 400
+    conn = get_db()
+    init_workflow_tables(conn)
+    count = bulk_approve(conn, ids, reviewer=session["username"], note=note)
+    conn.close()
+    return jsonify({"approved": count})
+
+
+@app.route("/api/workflow/bulk_reject", methods=["POST"])
+@admin_required
+def api_bulk_reject():
+    data = request.get_json(silent=True) or {}
+    ids  = [int(i) for i in (data.get("ticket_ids") or []) if str(i).isdigit()]
+    note = data.get("note", "Bulk rejected by admin")
+    if not ids:
+        return jsonify({"error": "No ticket IDs provided"}), 400
+    conn = get_db()
+    init_workflow_tables(conn)
+    count = bulk_reject(conn, ids, reviewer=session["username"], note=note)
+    conn.close()
+    return jsonify({"rejected": count})
+
+
+@app.route("/api/workflow/rules", methods=["GET"])
+@admin_required
+def api_get_rules():
+    conn = get_db()
+    rows = conn.execute("SELECT * FROM workflow_rules ORDER BY id DESC").fetchall()
+    conn.close()
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route("/api/workflow/rules", methods=["POST"])
+@admin_required
+def api_create_rule():
+    data = request.get_json(silent=True) or {}
+    required = ["name", "category", "department", "sla_hours"]
+    if not all(data.get(k) for k in required):
+        return jsonify({"error": "Missing required fields"}), 400
+    conn = get_db()
+    init_workflow_tables(conn)
+    create_workflow_rule(
+        conn,
+        name=data["name"],
+        category=data["category"],
+        department=data["department"],
+        sla_hours=int(data.get("sla_hours", 24)),
+        requires_approval=bool(data.get("requires_approval", False)),
+        escalate_after_hrs=int(data.get("escalate_after_hrs", 48))
+    )
+    conn.close()
+    return jsonify({"status": "created"})
+
+
+@app.route("/api/workflow/rules/<int:rule_id>", methods=["PATCH"])
+@admin_required
+def api_update_rule(rule_id):
+    data = request.get_json(silent=True) or {}
+    conn = get_db()
+    update_workflow_rule(
+        conn, rule_id,
+        sla_hours=int(data.get("sla_hours", 24)),
+        requires_approval=bool(data.get("requires_approval", False)),
+        escalate_after_hrs=int(data.get("escalate_after_hrs", 48))
+    )
+    conn.close()
+    return jsonify({"status": "updated"})
+
+
+@app.route("/api/workflow/rules/<int:rule_id>/toggle", methods=["POST"])
+@admin_required
+def api_toggle_rule(rule_id):
+    data   = request.get_json(silent=True) or {}
+    active = bool(data.get("active", True))
+    conn   = get_db()
+    toggle_workflow_rule(conn, rule_id, active)
+    conn.close()
+    return jsonify({"status": "toggled", "active": active})
+
+
+@app.route("/api/workflow/stats")
+@admin_required
+def api_workflow_stats():
+    conn = get_db()
+    init_workflow_tables(conn)
+    total_notif  = conn.execute("SELECT COUNT(*) FROM notifications").fetchone()[0]
+    sent_notif   = conn.execute("SELECT COUNT(*) FROM notifications WHERE status='sent'").fetchone()[0]
+    pending_appr = conn.execute("SELECT COUNT(*) FROM approvals WHERE status='pending'").fetchone()[0]
+    escalations  = conn.execute("SELECT COUNT(*) FROM escalations").fetchone()[0]
+    wf_events    = conn.execute("SELECT COUNT(*) FROM workflow_log").fetchone()[0]
+    webhooks     = conn.execute("SELECT COUNT(*) FROM webhook_log").fetchone()[0] if _table_exists(conn, "webhook_log") else 0
+    conn.close()
+    return jsonify({
+        "notifications_total":  total_notif,
+        "notifications_sent":   sent_notif,
+        "pending_approvals":    pending_appr,
+        "escalations":          escalations,
+        "workflow_events":      wf_events,
+        "webhooks_fired":       webhooks,
+    })
+
+
+def _table_exists(conn, table_name):
+    return conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table_name,)
+    ).fetchone() is not None
 
 
 if __name__ == "__main__":
