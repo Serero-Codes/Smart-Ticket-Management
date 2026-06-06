@@ -1,28 +1,30 @@
 """
-workflow.py
------------
-End-to-End Workflow Automation Engine for Smart Ticket Management System.
-
-Handles:
-  - Auto-routing rules (category → department + SLA)
-  - Approval workflow triggers (urgent tickets, high-value categories)
-  - Email notification dispatch (SMTP with graceful fallback)
-  - Notification log (persisted to DB)
-  - Workflow event pipeline (called on ticket submit + status change)
+workflow.py  —  End-to-End Workflow Automation Engine
+=====================================================
+Features:
+  • Auto-routing rules (category → department + SLA)
+  • Approval workflow triggers  (urgent + HR + Finance)
+  • Email notification dispatch (SMTP / simulation)
+  • Escalation engine          (SLA-breach auto-escalation)
+  • Webhook integration        (POST to external URLs on events)
+  • Workflow rule management   (custom rules stored in DB)
+  • Bulk-action support        (approve/reject many tickets at once)
+  • Notification log           (full history)
+  • Workflow event log         (full audit trail)
 """
 
 import os
+import json
 import smtplib
 import threading
+import urllib.request
 from datetime import datetime, timedelta
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
 
 # ═══════════════════════════════════════════════════════════════════
-# ROUTING RULES
-# Each rule: category → { department, sla_hours, requires_approval,
-#                         approval_threshold (priority), escalate_after_hours }
+# DEFAULT ROUTING RULES (overridden by DB rules if present)
 # ═══════════════════════════════════════════════════════════════════
 
 ROUTING_RULES = {
@@ -30,7 +32,7 @@ ROUTING_RULES = {
         "department":         "IT",
         "sla_hours":          8,
         "requires_approval":  False,
-        "approval_threshold": "Urgent",   # only urgent IT needs approval
+        "approval_threshold": "Urgent",
         "escalate_after_hrs": 24,
         "notify_roles":       ["admin"],
         "icon":               "💻",
@@ -38,7 +40,7 @@ ROUTING_RULES = {
     "HR": {
         "department":         "HR",
         "sla_hours":          24,
-        "requires_approval":  True,        # all HR tickets need approval
+        "requires_approval":  True,
         "approval_threshold": "Normal",
         "escalate_after_hrs": 48,
         "notify_roles":       ["admin"],
@@ -47,7 +49,7 @@ ROUTING_RULES = {
     "Finance": {
         "department":         "Finance",
         "sla_hours":          48,
-        "requires_approval":  True,        # finance always needs approval
+        "requires_approval":  True,
         "approval_threshold": "Normal",
         "escalate_after_hrs": 72,
         "notify_roles":       ["admin"],
@@ -70,13 +72,17 @@ DEFAULT_RULE = {
     "escalate_after_hrs": 48, "notify_roles": ["admin"], "icon": "🎫",
 }
 
+# Webhook events — set via env var WEBHOOK_URL
+WEBHOOK_URL    = os.environ.get("WEBHOOK_URL", "")
+WEBHOOK_EVENTS = {"ticket_submitted", "approval_requested",
+                  "approval_decision", "status_changed", "sla_breached"}
+
 
 # ═══════════════════════════════════════════════════════════════════
-# DB HELPERS
+# DB INITIALISATION
 # ═══════════════════════════════════════════════════════════════════
 
 def init_workflow_tables(conn):
-    """Create all workflow-related tables."""
     conn.execute("""
         CREATE TABLE IF NOT EXISTS notifications (
             id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -111,14 +117,54 @@ def init_workflow_tables(conn):
             created_at  TEXT NOT NULL
         )
     """)
-    # Add sla_due column to tickets if missing
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS workflow_rules (
+            id               INTEGER PRIMARY KEY AUTOINCREMENT,
+            name             TEXT NOT NULL,
+            category         TEXT NOT NULL,
+            department       TEXT NOT NULL,
+            sla_hours        INTEGER NOT NULL DEFAULT 24,
+            requires_approval INTEGER NOT NULL DEFAULT 0,
+            escalate_after_hrs INTEGER NOT NULL DEFAULT 48,
+            is_active        INTEGER NOT NULL DEFAULT 1,
+            created_at       TEXT NOT NULL,
+            updated_at       TEXT NOT NULL
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS escalations (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            ticket_id   INTEGER NOT NULL UNIQUE,
+            escalated_at TEXT NOT NULL,
+            reason      TEXT,
+            notified    INTEGER DEFAULT 0
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS webhook_log (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            event       TEXT NOT NULL,
+            payload     TEXT,
+            status      TEXT DEFAULT 'sent',
+            created_at  TEXT NOT NULL
+        )
+    """)
+    # Columns on tickets
     existing = [r[1] for r in conn.execute("PRAGMA table_info(tickets)").fetchall()]
-    if "sla_due" not in existing:
-        conn.execute("ALTER TABLE tickets ADD COLUMN sla_due TEXT")
-    if "workflow_status" not in existing:
-        conn.execute("ALTER TABLE tickets ADD COLUMN workflow_status TEXT DEFAULT 'active'")
+    for col, defn in [
+        ("sla_due",         "TEXT"),
+        ("workflow_status", "TEXT DEFAULT 'active'"),
+        ("escalated",       "INTEGER DEFAULT 0"),
+        ("assigned_agent",  "TEXT"),
+    ]:
+        if col not in existing:
+            conn.execute(f"ALTER TABLE tickets ADD COLUMN {col} {defn}")
     conn.commit()
 
+
+# ═══════════════════════════════════════════════════════════════════
+# HELPERS
+# ═══════════════════════════════════════════════════════════════════
 
 def log_workflow(conn, ticket_id, event, detail=""):
     conn.execute("""
@@ -128,17 +174,57 @@ def log_workflow(conn, ticket_id, event, detail=""):
     conn.commit()
 
 
-def save_notification(conn, ticket_id, recipient, subject, body, status="sent"):
+def save_notification(conn, ticket_id, recipient, subject, body, status="sent", channel="email"):
     conn.execute("""
-        INSERT INTO notifications (ticket_id, recipient, subject, body, status, created_at)
-        VALUES (?, ?, ?, ?, ?, ?)
-    """, (ticket_id, recipient, subject, body,
+        INSERT INTO notifications (ticket_id, recipient, subject, body, channel, status, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, (ticket_id, recipient, subject, body, channel,
           status, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
     conn.commit()
 
 
+def get_effective_rule(category: str) -> dict:
+    """Return ROUTING_RULES entry or default."""
+    return ROUTING_RULES.get(category, DEFAULT_RULE)
+
+
 # ═══════════════════════════════════════════════════════════════════
-# EMAIL
+# WEBHOOK
+# ═══════════════════════════════════════════════════════════════════
+
+def _fire_webhook(conn, event: str, payload: dict):
+    """POST JSON payload to WEBHOOK_URL in a background thread."""
+    if not WEBHOOK_URL or event not in WEBHOOK_EVENTS:
+        return
+    body = json.dumps({"event": event, "timestamp": datetime.now().isoformat(), **payload})
+
+    def _post():
+        status = "failed"
+        try:
+            req = urllib.request.Request(
+                WEBHOOK_URL,
+                data=body.encode(),
+                headers={"Content-Type": "application/json"},
+                method="POST"
+            )
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                status = "sent" if resp.status < 300 else "failed"
+        except Exception as exc:
+            print(f"[webhook] {exc}")
+        try:
+            conn.execute("""
+                INSERT INTO webhook_log (event, payload, status, created_at)
+                VALUES (?, ?, ?, ?)
+            """, (event, body, status, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+            conn.commit()
+        except Exception:
+            pass
+
+    threading.Thread(target=_post, daemon=True).start()
+
+
+# ═══════════════════════════════════════════════════════════════════
+# EMAIL CONFIG + SENDER
 # ═══════════════════════════════════════════════════════════════════
 
 EMAIL_CONFIG = {
@@ -152,34 +238,27 @@ EMAIL_CONFIG = {
 
 
 def _send_email(to: str, subject: str, html_body: str) -> bool:
-    """Send a single HTML email. Returns True on success."""
     cfg = EMAIL_CONFIG
     if not cfg["username"] or not cfg["password"]:
-        # No SMTP config — silent no-op (logged as 'simulated')
         return False
-
     try:
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject
         msg["From"]    = f"{cfg['from_name']} <{cfg['from_addr']}>"
         msg["To"]      = to
         msg.attach(MIMEText(html_body, "html"))
-
         with smtplib.SMTP(cfg["smtp_host"], cfg["smtp_port"], timeout=10) as server:
-            server.ehlo()
-            server.starttls()
+            server.ehlo(); server.starttls()
             server.login(cfg["username"], cfg["password"])
             server.sendmail(cfg["from_addr"], to, msg.as_string())
         return True
     except Exception as exc:
-        print(f"[workflow] Email error → {exc}")
+        print(f"[email] {exc}")
         return False
 
 
 def _send_async(to, subject, html_body):
-    """Fire-and-forget email in background thread."""
-    t = threading.Thread(target=_send_email, args=(to, subject, html_body), daemon=True)
-    t.start()
+    threading.Thread(target=_send_email, args=(to, subject, html_body), daemon=True).start()
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -191,14 +270,10 @@ def _base_email(title: str, content: str, cta_label: str = "", cta_url: str = ""
     if cta_label and cta_url:
         cta_html = f"""
         <div style="text-align:center;margin:28px 0 8px">
-            <a href="{cta_url}" style="
-                display:inline-block;padding:12px 28px;
-                background:#2563eb;color:#fff;
-                font-weight:700;font-size:14px;
+            <a href="{cta_url}" style="display:inline-block;padding:12px 28px;
+                background:#2563eb;color:#fff;font-weight:700;font-size:14px;
                 border-radius:8px;text-decoration:none;
-                box-shadow:0 2px 8px rgba(37,99,235,0.35)">
-                {cta_label}
-            </a>
+                box-shadow:0 2px 8px rgba(37,99,235,0.35)">{cta_label}</a>
         </div>"""
     return f"""
     <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:560px;margin:0 auto;
@@ -218,8 +293,8 @@ def _base_email(title: str, content: str, cta_label: str = "", cta_url: str = ""
         {cta_html}
         <p style="font-size:11px;color:#94a3b8;margin-top:28px;padding-top:16px;
                   border-top:1px solid #f1f5f9">
-          This is an automated message from Smart Ticket Management System.<br>
-          Please do not reply to this email.
+          Automated message from Smart Ticket Management System.<br>
+          Do not reply to this email.
         </p>
       </div>
     </div>"""
@@ -255,7 +330,8 @@ def email_ticket_submitted(ticket_id, category, priority, ai_response, employee_
     return _base_email("Ticket Submitted Successfully ✓", content)
 
 
-def email_approval_required(ticket_id, category, priority, ticket_text, requested_by, base_url="http://localhost:5000"):
+def email_approval_required(ticket_id, category, priority, ticket_text,
+                             requested_by, base_url="http://localhost:5000"):
     snippet = ticket_text[:120] + ("…" if len(ticket_text) > 120 else "")
     content = f"""
     <p style="color:#475569;line-height:1.7;margin:0 0 14px">
@@ -273,12 +349,9 @@ def email_approval_required(ticket_id, category, priority, ticket_text, requeste
     <p style="color:#64748b;font-size:13px;margin:0 0 6px">
         Submitted by: <strong style="color:#0f172a">{requested_by}</strong>
     </p>"""
-    return _base_email(
-        "⚠️ Approval Required",
-        content,
-        cta_label="Review & Approve →",
-        cta_url=f"{base_url}/approvals"
-    )
+    return _base_email("⚠️ Approval Required", content,
+                        cta_label="Review & Approve →",
+                        cta_url=f"{base_url}/approvals")
 
 
 def email_status_update(ticket_id, new_status, category, employee_name, note=""):
@@ -301,8 +374,8 @@ def email_status_update(ticket_id, new_status, category, employee_name, note="")
 
 
 def email_approval_decision(ticket_id, decision, category, employee_name, reviewer, note=""):
-    colour  = "#10b981" if decision == "approved" else "#ef4444"
-    icon    = "✅" if decision == "approved" else "❌"
+    colour = "#10b981" if decision == "approved" else "#ef4444"
+    icon   = "✅" if decision == "approved" else "❌"
     content = f"""
     <p style="color:#475569;line-height:1.7;margin:0 0 14px">
         Hi <strong style="color:#0f172a">{employee_name}</strong>,
@@ -323,34 +396,64 @@ def email_approval_decision(ticket_id, decision, category, employee_name, review
     return _base_email(f"Ticket #{ticket_id} {'Approved ✓' if decision=='approved' else 'Requires Changes'}", content)
 
 
+def email_escalation_alert(ticket_id, category, priority, employee_name,
+                            hours_overdue, base_url="http://localhost:5000"):
+    content = f"""
+    <p style="color:#475569;line-height:1.7;margin:0 0 14px">
+        🚨 <strong style="color:#ef4444">SLA Breach Alert</strong> — Ticket
+        <strong>#{ticket_id}</strong> ({category}) has exceeded its SLA window
+        by <strong style="color:#ef4444">{hours_overdue:.1f} hours</strong>.
+    </p>
+    <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;
+                padding:14px 16px;margin-bottom:18px;border-left:3px solid #ef4444">
+      <table style="width:100%;font-size:13px;color:#7f1d1d">
+        <tr><td style="padding:3px 0;font-weight:600;width:120px">Ticket #</td>
+            <td style="font-weight:700">#{ticket_id}</td></tr>
+        <tr><td style="padding:3px 0;font-weight:600">Category</td><td>{category}</td></tr>
+        <tr><td style="padding:3px 0;font-weight:600">Priority</td>
+            <td style="color:#ef4444;font-weight:700">{priority}</td></tr>
+        <tr><td style="padding:3px 0;font-weight:600">Submitted by</td><td>{employee_name}</td></tr>
+        <tr><td style="padding:3px 0;font-weight:600">Overdue by</td>
+            <td style="color:#ef4444;font-weight:700">{hours_overdue:.1f}h</td></tr>
+      </table>
+    </div>
+    <p style="color:#64748b;font-size:13px;margin:0">
+        Immediate action is required. Please review and resolve this ticket.
+    </p>"""
+    return _base_email("🚨 SLA Breach — Immediate Action Required", content,
+                        cta_label="View Ticket →",
+                        cta_url=f"{base_url}/department")
+
+
 # ═══════════════════════════════════════════════════════════════════
 # MAIN WORKFLOW PIPELINE
-# Called on every ticket submission
 # ═══════════════════════════════════════════════════════════════════
 
-def run_ticket_workflow(conn, ticket_id: int, ticket: dict, employee_email: str = None, base_url: str = "http://localhost:5000"):
+def run_ticket_workflow(conn, ticket_id: int, ticket: dict,
+                        employee_email: str = None,
+                        base_url: str = "http://localhost:5000"):
     """
     Full automation pipeline for a newly submitted ticket:
-      1. Determine routing rule
-      2. Set SLA due date on ticket
-      3. Create approval request if required
-      4. Send confirmation email to employee
-      5. Send approval-required email to admin (if applicable)
+      1. Determine routing rule → set SLA due date
+      2. Create approval request if required
+      3. Send confirmation email to employee
+      4. Send approval-required email to admin
+      5. Fire webhook
       6. Log all events
     """
     category = ticket.get("category", "IT")
     priority = ticket.get("priority", "Normal")
-    rule     = ROUTING_RULES.get(category, DEFAULT_RULE)
+    rule     = get_effective_rule(category)
     now      = datetime.now()
 
-    # ── 1. Set SLA due date ──
+    # 1. SLA
     sla_due = (now + timedelta(hours=rule["sla_hours"])).strftime("%Y-%m-%d %H:%M:%S")
     conn.execute("UPDATE tickets SET sla_due = ? WHERE id = ?", (sla_due, ticket_id))
     conn.commit()
     log_workflow(conn, ticket_id, "sla_set",
-                 f"SLA due: {sla_due} ({rule['sla_hours']}h window)")
+                 f"SLA due: {sla_due} ({rule['sla_hours']}h window, dept={rule['department']})")
 
-    # ── 2. Approval logic ──
+    # 2. Approval
     needs_approval = rule["requires_approval"] or priority == "Urgent"
     if needs_approval:
         conn.execute("""
@@ -363,7 +466,7 @@ def run_ticket_workflow(conn, ticket_id: int, ticket: dict, employee_email: str 
         log_workflow(conn, ticket_id, "approval_requested",
                      f"Approval required — category={category}, priority={priority}")
 
-    # ── 3. Email to employee (confirmation) ──
+    # 3. Employee confirmation email
     if employee_email:
         subj = f"[Ticket #{ticket_id}] Submitted — {category} | {priority}"
         body = email_ticket_submitted(
@@ -372,13 +475,13 @@ def run_ticket_workflow(conn, ticket_id: int, ticket: dict, employee_email: str 
             ticket.get("employee_name", "Employee"),
             rule["department"]
         )
-        sent = _send_email(employee_email, subj, body)
+        sent   = _send_email(employee_email, subj, body)
         status = "sent" if sent else "simulated"
         save_notification(conn, ticket_id, employee_email, subj, body, status)
         log_workflow(conn, ticket_id, "notification_sent",
                      f"Confirmation email → {employee_email} [{status}]")
 
-    # ── 4. Email to admin if approval needed ──
+    # 4. Admin approval email
     if needs_approval:
         admin_email = os.environ.get("ADMIN_EMAIL", "admin@company.com")
         subj = f"[ACTION REQUIRED] Ticket #{ticket_id} Needs Approval — {priority}"
@@ -388,17 +491,20 @@ def run_ticket_workflow(conn, ticket_id: int, ticket: dict, employee_email: str 
             ticket.get("employee_name", "Employee"),
             base_url
         )
-        sent = _send_email(admin_email, subj, body)
+        sent   = _send_email(admin_email, subj, body)
         status = "sent" if sent else "simulated"
         save_notification(conn, ticket_id, admin_email, subj, body, status)
         log_workflow(conn, ticket_id, "approval_notification",
                      f"Approval request email → {admin_email} [{status}]")
 
-    return {
-        "sla_due":       sla_due,
-        "needs_approval": needs_approval,
-        "rule":          rule,
-    }
+    # 5. Webhook
+    _fire_webhook(conn, "ticket_submitted", {
+        "ticket_id": ticket_id, "category": category,
+        "priority": priority, "department": rule["department"],
+        "sla_due": sla_due,
+    })
+
+    return {"sla_due": sla_due, "needs_approval": needs_approval, "rule": rule}
 
 
 def run_status_workflow(conn, ticket_id: int, new_status: str,
@@ -406,14 +512,16 @@ def run_status_workflow(conn, ticket_id: int, new_status: str,
                         employee_name: str = "Employee",
                         category: str = "",
                         note: str = ""):
-    """Called when a ticket status is updated."""
     log_workflow(conn, ticket_id, "status_changed",
                  f"Status → {new_status}" + (f" | Note: {note}" if note else ""))
-
+    _fire_webhook(conn, "status_changed", {
+        "ticket_id": ticket_id, "new_status": new_status,
+        "category": category, "note": note,
+    })
     if employee_email:
         subj = f"[Ticket #{ticket_id}] Status Updated → {new_status}"
         body = email_status_update(ticket_id, new_status, category, employee_name, note)
-        sent = _send_email(employee_email, subj, body)
+        sent   = _send_email(employee_email, subj, body)
         status = "sent" if sent else "simulated"
         save_notification(conn, ticket_id, employee_email, subj, body, status)
 
@@ -424,41 +532,163 @@ def run_approval_workflow(conn, ticket_id: int, decision: str,
                           employee_name: str = "Employee",
                           category: str = "",
                           note: str = ""):
-    """Called when admin approves or rejects a ticket."""
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     conn.execute("""
         UPDATE approvals
         SET status=?, reviewed_by=?, review_note=?, reviewed_at=?
         WHERE ticket_id=?
     """, (decision, reviewer, note, now, ticket_id))
-
     new_status = "In Progress" if decision == "approved" else "Open"
     conn.execute("UPDATE tickets SET status=? WHERE id=?", (new_status, ticket_id))
     conn.commit()
-
     log_workflow(conn, ticket_id, f"approval_{decision}",
                  f"Reviewed by {reviewer}" + (f" — {note}" if note else ""))
-
+    _fire_webhook(conn, "approval_decision", {
+        "ticket_id": ticket_id, "decision": decision,
+        "reviewer": reviewer, "note": note,
+    })
     if employee_email:
         subj = f"[Ticket #{ticket_id}] {'Approved ✓' if decision=='approved' else 'Review Required'}"
         body = email_approval_decision(ticket_id, decision, category,
                                        employee_name, reviewer, note)
-        sent = _send_email(employee_email, subj, body)
+        sent   = _send_email(employee_email, subj, body)
         status = "sent" if sent else "simulated"
         save_notification(conn, ticket_id, employee_email, subj, body, status)
 
 
 # ═══════════════════════════════════════════════════════════════════
-# SLA HELPER — check which tickets are breached or at risk
+# BULK ACTIONS
+# ═══════════════════════════════════════════════════════════════════
+
+def bulk_approve(conn, ticket_ids: list, reviewer: str, note: str = "Bulk approved") -> int:
+    """Approve multiple tickets at once. Returns count processed."""
+    count = 0
+    for tid in ticket_ids:
+        ticket = conn.execute("SELECT * FROM tickets WHERE id=?", (tid,)).fetchone()
+        if not ticket:
+            continue
+        approval = conn.execute("SELECT * FROM approvals WHERE ticket_id=?", (tid,)).fetchone()
+        if approval and approval["status"] == "pending":
+            emp = conn.execute("SELECT email FROM users WHERE id=?",
+                               (ticket["user_id"],)).fetchone()
+            run_approval_workflow(
+                conn, tid, "approved", reviewer,
+                employee_email=emp["email"] if emp else None,
+                employee_name=ticket["employee_name"],
+                category=ticket["category"],
+                note=note
+            )
+            count += 1
+    return count
+
+
+def bulk_reject(conn, ticket_ids: list, reviewer: str, note: str = "Bulk rejected") -> int:
+    count = 0
+    for tid in ticket_ids:
+        ticket = conn.execute("SELECT * FROM tickets WHERE id=?", (tid,)).fetchone()
+        if not ticket:
+            continue
+        approval = conn.execute("SELECT * FROM approvals WHERE ticket_id=?", (tid,)).fetchone()
+        if approval and approval["status"] == "pending":
+            emp = conn.execute("SELECT email FROM users WHERE id=?",
+                               (ticket["user_id"],)).fetchone()
+            run_approval_workflow(
+                conn, tid, "rejected", reviewer,
+                employee_email=emp["email"] if emp else None,
+                employee_name=ticket["employee_name"],
+                category=ticket["category"],
+                note=note
+            )
+            count += 1
+    return count
+
+
+# ═══════════════════════════════════════════════════════════════════
+# ESCALATION ENGINE
+# ═══════════════════════════════════════════════════════════════════
+
+def run_escalation_check(conn, base_url: str = "http://localhost:5000") -> list:
+    """
+    Scan all open/in-progress tickets for SLA breaches.
+    For breached tickets not yet escalated: send alert email + log.
+    Returns list of escalated ticket dicts.
+    """
+    init_workflow_tables(conn)
+    now     = datetime.now()
+    tickets = conn.execute("""
+        SELECT t.*, u.email as user_email
+        FROM tickets t
+        LEFT JOIN users u ON t.user_id = u.id
+        WHERE t.status IN ('Open','In Progress') AND t.sla_due IS NOT NULL
+    """).fetchall()
+
+    escalated = []
+    for t in tickets:
+        try:
+            due = datetime.strptime(t["sla_due"], "%Y-%m-%d %H:%M:%S")
+        except Exception:
+            continue
+        if due >= now:
+            continue  # not breached yet
+
+        hours_overdue = (now - due).total_seconds() / 3600
+
+        # Already escalated?
+        existing = conn.execute(
+            "SELECT id FROM escalations WHERE ticket_id=?", (t["id"],)
+        ).fetchone()
+        if existing:
+            continue
+
+        # Log escalation
+        conn.execute("""
+            INSERT OR IGNORE INTO escalations (ticket_id, escalated_at, reason, notified)
+            VALUES (?, ?, ?, 1)
+        """, (t["id"], now.strftime("%Y-%m-%d %H:%M:%S"),
+              f"SLA breached by {hours_overdue:.1f}h"))
+        conn.execute("UPDATE tickets SET escalated=1 WHERE id=?", (t["id"],))
+        conn.commit()
+
+        log_workflow(conn, t["id"], "sla_breached",
+                     f"SLA breached by {hours_overdue:.1f}h — auto-escalated")
+
+        # Email admin
+        admin_email = os.environ.get("ADMIN_EMAIL", "admin@company.com")
+        subj = f"🚨 SLA BREACH — Ticket #{t['id']} ({t['category']}) overdue by {hours_overdue:.0f}h"
+        body = email_escalation_alert(
+            t["id"], t["category"],
+            t["priority"] or "Normal",
+            t["employee_name"], hours_overdue, base_url
+        )
+        sent   = _send_email(admin_email, subj, body)
+        status = "sent" if sent else "simulated"
+        save_notification(conn, t["id"], admin_email, subj, body, status)
+
+        _fire_webhook(conn, "sla_breached", {
+            "ticket_id": t["id"], "category": t["category"],
+            "hours_overdue": round(hours_overdue, 1),
+            "priority": t["priority"] or "Normal",
+        })
+
+        escalated.append({
+            "ticket_id":     t["id"],
+            "category":      t["category"],
+            "hours_overdue": round(hours_overdue, 1),
+        })
+
+    return escalated
+
+
+# ═══════════════════════════════════════════════════════════════════
+# SLA HELPER
 # ═══════════════════════════════════════════════════════════════════
 
 def get_sla_status(sla_due_str: str) -> dict:
-    """Returns sla_label and sla_class for template rendering."""
     if not sla_due_str:
         return {"sla_label": "No SLA", "sla_class": "sla-none"}
     try:
-        due = datetime.strptime(sla_due_str, "%Y-%m-%d %H:%M:%S")
-        now = datetime.now()
+        due  = datetime.strptime(sla_due_str, "%Y-%m-%d %H:%M:%S")
+        now  = datetime.now()
         diff = due - now
         hrs  = diff.total_seconds() / 3600
         if hrs < 0:
@@ -469,3 +699,54 @@ def get_sla_status(sla_due_str: str) -> dict:
             return {"sla_label": f"Due {due.strftime('%d %b %H:%M')}", "sla_class": "sla-ok"}
     except Exception:
         return {"sla_label": "—", "sla_class": "sla-none"}
+
+
+# ═══════════════════════════════════════════════════════════════════
+# WORKFLOW RULE CRUD
+# ═══════════════════════════════════════════════════════════════════
+
+def create_workflow_rule(conn, name, category, department,
+                         sla_hours, requires_approval, escalate_after_hrs):
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    conn.execute("""
+        INSERT INTO workflow_rules
+            (name, category, department, sla_hours, requires_approval,
+             escalate_after_hrs, is_active, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
+    """, (name, category, department, sla_hours,
+          1 if requires_approval else 0, escalate_after_hrs, now, now))
+    conn.commit()
+    # Sync back into ROUTING_RULES so it takes effect immediately
+    ROUTING_RULES[category] = {
+        "department": department, "sla_hours": sla_hours,
+        "requires_approval": bool(requires_approval),
+        "approval_threshold": "Normal" if requires_approval else "Urgent",
+        "escalate_after_hrs": escalate_after_hrs,
+        "notify_roles": ["admin"], "icon": "🔧",
+    }
+
+
+def update_workflow_rule(conn, rule_id, sla_hours, requires_approval, escalate_after_hrs):
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    conn.execute("""
+        UPDATE workflow_rules
+        SET sla_hours=?, requires_approval=?, escalate_after_hrs=?, updated_at=?
+        WHERE id=?
+    """, (sla_hours, 1 if requires_approval else 0, escalate_after_hrs, now, rule_id))
+    conn.commit()
+    # Re-sync
+    row = conn.execute("SELECT * FROM workflow_rules WHERE id=?", (rule_id,)).fetchone()
+    if row:
+        ROUTING_RULES[row["category"]] = {
+            "department": row["department"], "sla_hours": row["sla_hours"],
+            "requires_approval": bool(row["requires_approval"]),
+            "approval_threshold": "Normal" if row["requires_approval"] else "Urgent",
+            "escalate_after_hrs": row["escalate_after_hrs"],
+            "notify_roles": ["admin"], "icon": "🔧",
+        }
+
+
+def toggle_workflow_rule(conn, rule_id, active: bool):
+    conn.execute("UPDATE workflow_rules SET is_active=? WHERE id=?",
+                 (1 if active else 0, rule_id))
+    conn.commit()
