@@ -575,6 +575,10 @@
         {% if session.get('role') == 'admin' %}
             <a href="/dashboard" class="nav-link {% if request.path == '/dashboard' %}active{% endif %}">Dashboard</a>
             <a href="/department" class="nav-link {% if request.path == '/department' %}active{% endif %}">All Tickets</a>
+            <a href="/analytics" class="nav-link {% if request.path == '/analytics' or request.path == '/report' %}active{% endif %}">Analytics</a>
+            <a href="/forecast" class="nav-link {% if request.path == '/forecast' %}active{% endif %}">Forecast</a>
+            <a href="/governance" class="nav-link {% if request.path == '/governance' %}active{% endif %}">Governance</a>
+            <a href="/workflow" class="nav-link {% if request.path == '/workflow' or request.path == '/approvals' %}active{% endif %}">Workflow</a>
         {% else %}
             <a href="/index" class="nav-link {% if request.path == '/index' %}active{% endif %}">Submit</a>
             <a href="/history" class="nav-link {% if request.path == '/history' %}active{% endif %}">My Tickets</a>

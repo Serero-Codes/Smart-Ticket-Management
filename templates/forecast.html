@@ -1,0 +1,582 @@
+{% extends "base.html" %} {% block title %}Forecast{% endblock %} {% block head %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+    /* ── Alert banner ── */
+    
+    .forecast-alert {
+        display: flex;
+        align-items: flex-start;
+        gap: 14px;
+        padding: 16px 20px;
+        border-radius: 14px;
+        border-left: 4px solid;
+        margin-bottom: 24px;
+        animation: fadeUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+    
+    .forecast-alert.high {
+        background: rgba(239, 68, 68, 0.07);
+        border-color: var(--error);
+    }
+    
+    .forecast-alert.moderate {
+        background: rgba(245, 158, 11, 0.07);
+        border-color: var(--warn);
+    }
+    
+    .forecast-alert.normal {
+        background: rgba(16, 185, 129, 0.07);
+        border-color: var(--closed);
+    }
+    
+    .alert-icon {
+        font-size: 22px;
+        flex-shrink: 0;
+        margin-top: 1px;
+    }
+    
+    .alert-title {
+        font-size: 13px;
+        font-weight: 800;
+        margin-bottom: 3px;
+    }
+    
+    .alert-title.high {
+        color: var(--error);
+    }
+    
+    .alert-title.moderate {
+        color: var(--warn);
+    }
+    
+    .alert-title.normal {
+        color: var(--closed);
+    }
+    
+    .alert-body {
+        font-size: 13px;
+        color: var(--text2);
+        line-height: 1.6;
+    }
+    /* ── KPI strip ── */
+    
+    .forecast-kpis {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 14px;
+        margin-bottom: 24px;
+    }
+    
+    .fkpi {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 16px;
+        text-align: center;
+        box-shadow: var(--shadow-sm);
+        animation: fadeUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+        transition: background 0.35s, border-color 0.35s;
+    }
+    
+    .fkpi:nth-child(1) {
+        animation-delay: 0.04s
+    }
+    
+    .fkpi:nth-child(2) {
+        animation-delay: 0.08s
+    }
+    
+    .fkpi:nth-child(3) {
+        animation-delay: 0.12s
+    }
+    
+    .fkpi:nth-child(4) {
+        animation-delay: 0.16s
+    }
+    
+    .fkpi:nth-child(5) {
+        animation-delay: 0.20s
+    }
+    
+    .fkpi-val {
+        font-size: 30px;
+        font-weight: 800;
+        color: var(--text);
+        line-height: 1;
+        letter-spacing: -0.03em;
+    }
+    
+    .fkpi-label {
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+        margin-top: 7px;
+    }
+    /* ── Chart cards ── */
+    
+    .fc-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+        margin-bottom: 20px;
+    }
+    
+    .fc-grid.single {
+        grid-template-columns: 1fr;
+    }
+    
+    .fc-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 24px;
+        box-shadow: var(--shadow-sm);
+        animation: fadeUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+        transition: background 0.35s, border-color 0.35s;
+    }
+    
+    .fc-card:nth-child(1) {
+        animation-delay: 0.1s
+    }
+    
+    .fc-card:nth-child(2) {
+        animation-delay: 0.15s
+    }
+    
+    @keyframes fadeUp {
+        from {
+            opacity: 0;
+            transform: translateY(12px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    .fc-title {
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--text);
+        margin-bottom: 4px;
+        letter-spacing: -0.01em;
+    }
+    
+    .fc-sub {
+        font-size: 11px;
+        color: var(--muted);
+        margin-bottom: 20px;
+    }
+    /* ── Surge table ── */
+    
+    .surge-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    
+    .surge-table th {
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+        padding: 0 0 12px;
+        text-align: left;
+        border-bottom: 1px solid var(--border);
+    }
+    
+    .surge-table td {
+        padding: 13px 0;
+        font-size: 13px;
+        color: var(--text2);
+        border-bottom: 1px solid var(--border);
+        vertical-align: middle;
+    }
+    
+    .surge-table tr:last-child td {
+        border-bottom: none;
+    }
+    
+    .surge-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 4px 10px;
+        border-radius: 20px;
+        font-size: 11px;
+        font-weight: 700;
+        border: 1px solid;
+    }
+    
+    .surge-high {
+        color: var(--error);
+        background: rgba(239, 68, 68, 0.08);
+        border-color: rgba(239, 68, 68, 0.2);
+    }
+    
+    .surge-moderate {
+        color: var(--warn);
+        background: rgba(245, 158, 11, 0.08);
+        border-color: rgba(245, 158, 11, 0.2);
+    }
+    
+    .surge-stable {
+        color: var(--closed);
+        background: rgba(16, 185, 129, 0.08);
+        border-color: rgba(16, 185, 129, 0.2);
+    }
+    
+    .surge-declining {
+        color: var(--muted);
+        background: var(--surface3);
+        border-color: var(--border);
+    }
+    
+    .pct-up {
+        color: var(--error);
+        font-weight: 700;
+    }
+    
+    .pct-down {
+        color: var(--closed);
+        font-weight: 700;
+    }
+    
+    .pct-flat {
+        color: var(--muted);
+        font-weight: 600;
+    }
+    /* ── Trend pill ── */
+    
+    .trend-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 5px 12px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 700;
+        border: 1px solid;
+    }
+    
+    .trend-rising {
+        color: var(--error);
+        background: rgba(239, 68, 68, 0.07);
+        border-color: rgba(239, 68, 68, 0.15);
+    }
+    
+    .trend-falling {
+        color: var(--closed);
+        background: rgba(16, 185, 129, 0.07);
+        border-color: rgba(16, 185, 129, 0.15);
+    }
+    
+    .trend-stable {
+        color: var(--muted);
+        background: var(--surface3);
+        border-color: var(--border);
+    }
+    
+    canvas {
+        display: block;
+        width: 100% !important;
+    }
+</style>
+{% endblock %} {% block content %}
+<div class="page-header animate-in">
+    <div class="page-header-left">
+        <p>Admin overview</p>
+        <h1>Workload Forecast</h1>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px">
+        <span class="trend-pill trend-{{ fc.trend_direction }}">
+            {% if fc.trend_direction == 'rising' %}↑ Rising Trend
+            {% elif fc.trend_direction == 'falling' %}↓ Falling Trend
+            {% else %}→ Stable Trend{% endif %}
+        </span>
+        <a href="/governance" class="btn btn-ghost">Governance →</a>
+    </div>
+</div>
+
+<!-- Alert banner -->
+<div class="forecast-alert {{ fc.alert_level }}">
+    <span class="alert-icon">
+        {% if fc.alert_level == 'high' %}🔴
+        {% elif fc.alert_level == 'moderate' %}🟡
+        {% else %}🟢{% endif %}
+    </span>
+    <div>
+        <p class="alert-title {{ fc.alert_level }}">
+            {% if fc.alert_level == 'high' %}High Workload Alert {% elif fc.alert_level == 'moderate' %}Moderate Workload Warning {% else %}Workload Stable{% endif %}
+        </p>
+        <p class="alert-body">{{ fc.alert_text }} Average over the next 7 days is projected at <strong>{{ fc.avg_next7 }} tickets/day</strong> vs <strong>{{ fc.avg_last7 }} tickets/day</strong> over the last 7 days.
+        </p>
+    </div>
+</div>
+
+<!-- KPI strip -->
+<div class="forecast-kpis">
+    <div class="fkpi">
+        <p class="fkpi-val">{{ fc.avg_last7 }}</p>
+        <p class="fkpi-label">Avg/Day (Last 7)</p>
+    </div>
+    <div class="fkpi">
+        <p class="fkpi-val" style="color:{% if fc.alert_level == 'high' %}var(--error){% elif fc.alert_level == 'moderate' %}var(--warn){% else %}var(--closed){% endif %}">
+            {{ fc.avg_next7 }}
+        </p>
+        <p class="fkpi-label">Avg/Day (Next 7)</p>
+    </div>
+    <div class="fkpi">
+        <p class="fkpi-val">{{ fc.peak_next14 }}</p>
+        <p class="fkpi-label">Peak Day (14-day)</p>
+    </div>
+    <div class="fkpi">
+        <p class="fkpi-val">{{ fc.total_forecast_14 }}</p>
+        <p class="fkpi-label">Total Projected (14d)</p>
+    </div>
+    <div class="fkpi">
+        <p class="fkpi-val">{{ fc.busiest_day }}</p>
+        <p class="fkpi-label">Busiest Day (hist.)</p>
+    </div>
+</div>
+
+<!-- Volume trend + day-of-week -->
+<div class="fc-grid">
+    <div class="fc-card" style="grid-column: 1 / -1">
+        <p class="fc-title">30-Day Actuals + 14-Day Forecast</p>
+        <p class="fc-sub">Linear regression model — dashed line shows predicted volume</p>
+        <canvas id="forecastChart" height="120"></canvas>
+    </div>
+</div>
+
+<div class="fc-grid">
+    <!-- Surge table -->
+    <div class="fc-card">
+        <p class="fc-title">Category Surge Detection</p>
+        <p class="fc-sub">Week-over-week volume change per category</p>
+        {% if fc.surge_data %}
+        <table class="surge-table">
+            <thead>
+                <tr>
+                    <th>Category</th>
+                    <th>Prev Week</th>
+                    <th>This Week</th>
+                    <th>Change</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in fc.surge_data %}
+                <tr>
+                    <td><strong style="color:var(--text)">{{ s.category }}</strong></td>
+                    <td>{{ s.prev_week }}</td>
+                    <td>{{ s.curr_week }}</td>
+                    <td>
+                        {% if s.change_pct > 0 %}
+                        <span class="pct-up">+{{ s.change_pct }}%</span> {% elif s.change_pct
+                        < 0 %} <span class="pct-down">{{ s.change_pct }}%</span>
+                            {% else %}
+                            <span class="pct-flat">0%</span> {% endif %}
+                    </td>
+                    <td>
+                        <span class="surge-badge surge-{{ s.level }}">
+                            {% if s.level == 'high' %}🔴 Surge
+                            {% elif s.level == 'moderate' %}🟡 Moderate
+                            {% elif s.level == 'declining' %}↓ Declining
+                            {% else %}✓ Stable{% endif %}
+                        </span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p style="font-size:13px;color:var(--muted);padding-top:12px">Not enough data yet — submit more tickets to see surge trends.</p>
+        {% endif %}
+    </div>
+
+    <!-- Day-of-week chart -->
+    <div class="fc-card">
+        <p class="fc-title">Historical Day-of-Week Pattern</p>
+        <p class="fc-sub">Which days generate the most tickets</p>
+        <canvas id="dowChart" height="200"></canvas>
+    </div>
+</div>
+{% endblock %} {% block scripts %}
+<script>
+    function cssVar(v) {
+        return getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+    }
+
+    const accent = '#2563eb';
+    const closed = '#10b981';
+    const error = '#ef4444';
+    const warn = '#f59e0b';
+    const border = cssVar('--border') || '#dde3f0';
+    const text2 = cssVar('--text2') || '#475569';
+
+    Chart.defaults.font.family = "'Plus Jakarta Sans', sans-serif";
+    Chart.defaults.color = text2;
+
+    // ── Forecast chart ──
+    const labels = {
+        {
+            fc.chart_labels | tojson
+        }
+    };
+    const actual = {
+        {
+            fc.chart_actual | tojson
+        }
+    };
+    const forecast = {
+        {
+            fc.chart_forecast | tojson
+        }
+    };
+
+    new Chart(document.getElementById('forecastChart'), {
+        type: 'line',
+        data: {
+            labels,
+            datasets: [{
+                label: 'Actual',
+                data: actual,
+                borderColor: accent,
+                backgroundColor: 'rgba(37,99,235,0.07)',
+                borderWidth: 2,
+                pointRadius: 2,
+                pointBackgroundColor: accent,
+                fill: true,
+                tension: 0.4,
+                spanGaps: false,
+            }, {
+                label: 'Forecast',
+                data: forecast,
+                borderColor: error,
+                backgroundColor: 'rgba(239,68,68,0.05)',
+                borderWidth: 2,
+                borderDash: [6, 4],
+                pointRadius: 3,
+                pointBackgroundColor: error,
+                fill: true,
+                tension: 0.4,
+                spanGaps: false,
+            }]
+        },
+        options: {
+            responsive: true,
+            interaction: {
+                mode: 'index',
+                intersect: false
+            },
+            plugins: {
+                legend: {
+                    position: 'top',
+                    labels: {
+                        padding: 16,
+                        font: {
+                            size: 12
+                        }
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => {
+                            const v = ctx.parsed.y;
+                            return v !== null ? ` ${ctx.dataset.label}: ${v.toFixed ? v.toFixed(1) : v}` : null;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    grid: {
+                        display: false
+                    },
+                    ticks: {
+                        maxTicksLimit: 12,
+                        font: {
+                            size: 11
+                        }
+                    }
+                },
+                y: {
+                    grid: {
+                        color: border
+                    },
+                    beginAtZero: true,
+                    ticks: {
+                        font: {
+                            size: 11
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    // ── Day-of-week chart ──
+    const dowLabels = {
+        {
+            fc.dow_labels | tojson
+        }
+    };
+    const dowValues = {
+        {
+            fc.dow_values | tojson
+        }
+    };
+    const maxDow = Math.max(...dowValues);
+    const dowColors = dowValues.map(v => v === maxDow ? error : 'rgba(37,99,235,0.55)');
+
+    new Chart(document.getElementById('dowChart'), {
+        type: 'bar',
+        data: {
+            labels: dowLabels,
+            datasets: [{
+                label: 'Tickets',
+                data: dowValues,
+                backgroundColor: dowColors,
+                borderRadius: 8,
+                borderSkipped: false,
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                x: {
+                    grid: {
+                        display: false
+                    },
+                    ticks: {
+                        font: {
+                            size: 12,
+                            weight: '600'
+                        }
+                    }
+                },
+                y: {
+                    grid: {
+                        color: border
+                    },
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1,
+                        font: {
+                            size: 11
+                        }
+                    }
+                }
+            }
+        }
+    });
+</script>
+{% endblock %}

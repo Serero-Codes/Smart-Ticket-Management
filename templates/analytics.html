@@ -1,0 +1,569 @@
+{% extends "base.html" %}
+{% block title %}Analytics{% endblock %}
+
+{% block head %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+.analytics-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+.analytics-grid.three {
+    grid-template-columns: 1fr 1fr 1fr;
+}
+
+.analytics-grid.full {
+    grid-template-columns: 1fr;
+}
+
+.chart-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: var(--shadow-sm);
+    transition: background 0.35s, border-color 0.35s;
+    animation: fadeUp 0.5s cubic-bezier(0.16,1,0.3,1) both;
+}
+
+@keyframes fadeUp {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.chart-card:nth-child(1) { animation-delay: 0.05s; }
+.chart-card:nth-child(2) { animation-delay: 0.1s; }
+.chart-card:nth-child(3) { animation-delay: 0.15s; }
+.chart-card:nth-child(4) { animation-delay: 0.2s; }
+.chart-card:nth-child(5) { animation-delay: 0.25s; }
+
+.chart-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    gap: 12px;
+}
+
+.chart-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.01em;
+}
+
+.chart-sub {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 3px;
+}
+
+.chart-badge {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 20px;
+    background: var(--accent-dim);
+    color: var(--accent);
+    border: 1px solid rgba(37,99,235,0.15);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+canvas { display: block; width: 100% !important; }
+
+/* KPI row */
+.kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.kpi-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px 16px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+    animation: fadeUp 0.5s cubic-bezier(0.16,1,0.3,1) both;
+    transition: transform 0.2s, box-shadow 0.2s, background 0.35s, border-color 0.35s;
+}
+
+.kpi-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+.kpi-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    border-radius: 14px 14px 0 0;
+}
+
+.kpi-card:nth-child(1)::before { background: linear-gradient(90deg,var(--accent),#60a5fa); animation-delay:0.04s; }
+.kpi-card:nth-child(2)::before { background: linear-gradient(90deg,var(--closed),#6ee7b7); animation-delay:0.08s; }
+.kpi-card:nth-child(3)::before { background: linear-gradient(90deg,var(--warn),#fcd34d); animation-delay:0.12s; }
+.kpi-card:nth-child(4)::before { background: linear-gradient(90deg,var(--error),#fca5a5); animation-delay:0.16s; }
+.kpi-card:nth-child(5)::before { background: linear-gradient(90deg,#8b5cf6,#c4b5fd); animation-delay:0.20s; }
+
+.kpi-card:nth-child(1) { animation-delay:0.04s; }
+.kpi-card:nth-child(2) { animation-delay:0.08s; }
+.kpi-card:nth-child(3) { animation-delay:0.12s; }
+.kpi-card:nth-child(4) { animation-delay:0.16s; }
+.kpi-card:nth-child(5) { animation-delay:0.20s; }
+
+.kpi-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    margin-bottom: 10px;
+}
+
+.kpi-value {
+    font-size: 36px;
+    font-weight: 800;
+    color: var(--text);
+    line-height: 1;
+    letter-spacing: -0.03em;
+}
+
+.kpi-value.pct::after { content: '%'; font-size: 20px; font-weight: 600; color: var(--text2); }
+
+.kpi-detail {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 8px;
+    font-weight: 500;
+}
+
+/* Trend indicator */
+.trend {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 10px;
+    margin-top: 6px;
+}
+
+.trend-up   { color: var(--closed); background: rgba(16,185,129,0.1); }
+.trend-down { color: var(--error);  background: rgba(239,68,68,0.1); }
+.trend-flat { color: var(--muted);  background: var(--surface3); }
+
+/* Dept table */
+.dept-table { width: 100%; border-collapse: collapse; }
+.dept-table th {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    padding: 0 0 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+}
+
+.dept-table td {
+    padding: 12px 0;
+    font-size: 13px;
+    color: var(--text2);
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+}
+
+.dept-table tr:last-child td { border-bottom: none; }
+
+.dept-bar-wrap {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.dept-bar-bg {
+    flex: 1;
+    height: 6px;
+    background: var(--surface3);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.dept-bar-fill {
+    height: 100%;
+    border-radius: 10px;
+    background: linear-gradient(90deg, var(--accent), #60a5fa);
+    transition: width 1s cubic-bezier(0.16,1,0.3,1);
+    width: 0;
+}
+
+.dept-count {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+    min-width: 28px;
+    text-align: right;
+}
+
+/* Report CTA */
+.report-cta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: linear-gradient(135deg, rgba(37,99,235,0.07) 0%, rgba(37,99,235,0.02) 100%);
+    border: 1px solid rgba(37,99,235,0.2);
+    border-radius: 14px;
+    padding: 20px 24px;
+    margin-bottom: 24px;
+    gap: 16px;
+    animation: fadeUp 0.5s cubic-bezier(0.16,1,0.3,1) 0.02s both;
+}
+
+.report-cta-left { display: flex; flex-direction: column; gap: 4px; }
+.report-cta-title { font-size: 14px; font-weight: 700; color: var(--text); }
+.report-cta-sub { font-size: 12px; color: var(--muted); }
+
+.btn-report {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 10px 20px;
+    background: var(--accent);
+    color: #fff;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    text-decoration: none;
+    white-space: nowrap;
+    box-shadow: 0 2px 10px var(--accent-glow);
+    transition: opacity 0.2s, transform 0.15s;
+}
+
+.btn-report:hover { opacity: 0.9; transform: translateY(-1px); }
+
+/* Urgency split */
+.urgency-split {
+    display: flex;
+    gap: 12px;
+    margin-top: 4px;
+}
+
+.urgency-item {
+    flex: 1;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    text-align: center;
+}
+
+.urgency-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 6px; }
+.urgency-val { font-size: 28px; font-weight: 800; line-height: 1; letter-spacing: -0.02em; }
+.urgency-val.urgent { color: var(--error); }
+.urgency-val.normal { color: var(--closed); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header animate-in">
+    <div class="page-header-left">
+        <p>Admin overview</p>
+        <h1>Analytics</h1>
+    </div>
+    <a href="/report" class="btn-report">📄 Generate Weekly Report</a>
+</div>
+
+<!-- Report CTA -->
+<div class="report-cta">
+    <div class="report-cta-left">
+        <span class="report-cta-title">📊 Weekly Business Report Ready</span>
+        <span class="report-cta-sub">Auto-generated summary across all departments — download as PDF or view in browser</span>
+    </div>
+    <a href="/report" class="btn-report">View & Download Report →</a>
+</div>
+
+<!-- KPI Strip -->
+<div class="kpi-grid">
+    <div class="kpi-card">
+        <p class="kpi-label">Total Tickets</p>
+        <p class="kpi-value" data-target="{{ kpis.total }}">0</p>
+        <p class="kpi-detail">{{ kpis.users }} registered users</p>
+    </div>
+    <div class="kpi-card">
+        <p class="kpi-label">Resolution Rate</p>
+        <p class="kpi-value pct" data-target="{{ kpis.resolution_rate }}">0</p>
+        <p class="kpi-detail">{{ kpis.closed }} tickets closed</p>
+    </div>
+    <div class="kpi-card">
+        <p class="kpi-label">Open Backlog</p>
+        <p class="kpi-value" data-target="{{ kpis.open }}">0</p>
+        <p class="kpi-detail">Awaiting action</p>
+    </div>
+    <div class="kpi-card">
+        <p class="kpi-label">Urgent Tickets</p>
+        <p class="kpi-value" data-target="{{ kpis.urgent }}">0</p>
+        <p class="kpi-detail">{{ kpis.urgent_pct }}% of all tickets</p>
+    </div>
+    <div class="kpi-card">
+        <p class="kpi-label">This Week</p>
+        <p class="kpi-value" data-target="{{ kpis.this_week }}">0</p>
+        <p class="kpi-detail">New submissions</p>
+    </div>
+</div>
+
+<!-- Row 1: Volume trend + Category doughnut -->
+<div class="analytics-grid">
+    <div class="chart-card">
+        <div class="chart-header">
+            <div>
+                <p class="chart-title">Ticket Volume — Last 30 Days</p>
+                <p class="chart-sub">Daily submission trend</p>
+            </div>
+            <span class="chart-badge">30-day</span>
+        </div>
+        <canvas id="volumeChart" height="180"></canvas>
+    </div>
+
+    <div class="chart-card">
+        <div class="chart-header">
+            <div>
+                <p class="chart-title">Category Distribution</p>
+                <p class="chart-sub">All-time breakdown</p>
+            </div>
+        </div>
+        <canvas id="categoryChart" height="180"></canvas>
+    </div>
+</div>
+
+<!-- Row 2: Status bar + Urgency -->
+<div class="analytics-grid">
+    <div class="chart-card">
+        <div class="chart-header">
+            <div>
+                <p class="chart-title">Status Overview</p>
+                <p class="chart-sub">Current ticket pipeline</p>
+            </div>
+        </div>
+        <canvas id="statusChart" height="160"></canvas>
+    </div>
+
+    <div class="chart-card">
+        <div class="chart-header">
+            <div>
+                <p class="chart-title">Priority Split</p>
+                <p class="chart-sub">Urgent vs Normal tickets</p>
+            </div>
+        </div>
+        <div class="urgency-split" style="margin-top:20px">
+            <div class="urgency-item">
+                <p class="urgency-label">🔴 Urgent</p>
+                <p class="urgency-val urgent" data-target="{{ kpis.urgent }}">0</p>
+            </div>
+            <div class="urgency-item">
+                <p class="urgency-label">🟢 Normal</p>
+                <p class="urgency-val normal" data-target="{{ kpis.normal }}">0</p>
+            </div>
+        </div>
+        <canvas id="priorityChart" height="130" style="margin-top:20px"></canvas>
+    </div>
+</div>
+
+<!-- Row 3: Department breakdown table -->
+<div class="analytics-grid full">
+    <div class="chart-card">
+        <div class="chart-header">
+            <div>
+                <p class="chart-title">Department Breakdown</p>
+                <p class="chart-sub">Volume and resolution rate per department</p>
+            </div>
+            <a href="/report" class="chart-badge" style="text-decoration:none;cursor:pointer">Download Report →</a>
+        </div>
+        <table class="dept-table">
+            <thead>
+                <tr>
+                    <th>Department</th>
+                    <th>Volume</th>
+                    <th style="width:160px">Share</th>
+                    <th>Open</th>
+                    <th>Closed</th>
+                    <th>Resolution %</th>
+                    <th>Urgent</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for dept in dept_stats %}
+                <tr>
+                    <td><strong style="color:var(--text)">{{ dept.name }}</strong></td>
+                    <td>{{ dept.total }}</td>
+                    <td>
+                        <div class="dept-bar-wrap">
+                            <div class="dept-bar-bg">
+                                <div class="dept-bar-fill" data-width="{{ dept.share }}"></div>
+                            </div>
+                            <span class="dept-count">{{ dept.share }}%</span>
+                        </div>
+                    </td>
+                    <td style="color:var(--open)">{{ dept.open }}</td>
+                    <td style="color:var(--closed)">{{ dept.closed }}</td>
+                    <td>
+                        <span style="font-weight:700;color:{% if dept.resolution >= 70 %}var(--closed){% elif dept.resolution >= 40 %}var(--warn){% else %}var(--error){% endif %}">
+                            {{ dept.resolution }}%
+                        </span>
+                    </td>
+                    <td style="color:var(--error)">{{ dept.urgent }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── Theme-aware colours ──
+function cssVar(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+
+const accent  = '#2563eb';
+const closed  = '#10b981';
+const warn    = '#f59e0b';
+const error   = '#ef4444';
+const purple  = '#8b5cf6';
+const muted   = cssVar('--muted') || '#94a3b8';
+const border  = cssVar('--border') || '#dde3f0';
+const text2   = cssVar('--text2') || '#475569';
+
+Chart.defaults.font.family = "'Plus Jakarta Sans', sans-serif";
+Chart.defaults.color = text2;
+
+// ── Data from Flask ──
+const volumeLabels = {{ volume_labels | tojson }};
+const volumeData   = {{ volume_data   | tojson }};
+const catLabels    = {{ cat_labels    | tojson }};
+const catData      = {{ cat_data      | tojson }};
+const statusLabels = ['Open', 'In Progress', 'Closed'];
+const statusData   = [{{ kpis.open }}, {{ kpis.in_progress }}, {{ kpis.closed }}];
+
+// ── Volume trend ──
+new Chart(document.getElementById('volumeChart'), {
+    type: 'line',
+    data: {
+        labels: volumeLabels,
+        datasets: [{
+            label: 'Tickets',
+            data: volumeData,
+            borderColor: accent,
+            backgroundColor: 'rgba(37,99,235,0.08)',
+            borderWidth: 2,
+            pointRadius: 3,
+            pointBackgroundColor: accent,
+            fill: true,
+            tension: 0.4,
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+            x: { grid: { display: false }, ticks: { maxTicksLimit: 8, font: { size: 11 } } },
+            y: { grid: { color: border }, ticks: { stepSize: 1, font: { size: 11 } }, beginAtZero: true }
+        }
+    }
+});
+
+// ── Category doughnut ──
+const catColors = [accent, closed, warn, error, purple, '#06b6d4'];
+new Chart(document.getElementById('categoryChart'), {
+    type: 'doughnut',
+    data: {
+        labels: catLabels,
+        datasets: [{
+            data: catData,
+            backgroundColor: catColors.slice(0, catLabels.length),
+            borderWidth: 0,
+            hoverOffset: 6,
+        }]
+    },
+    options: {
+        responsive: true,
+        cutout: '65%',
+        plugins: {
+            legend: { position: 'bottom', labels: { padding: 16, font: { size: 12 } } }
+        }
+    }
+});
+
+// ── Status horizontal bar ──
+new Chart(document.getElementById('statusChart'), {
+    type: 'bar',
+    data: {
+        labels: statusLabels,
+        datasets: [{
+            data: statusData,
+            backgroundColor: ['rgba(6,182,212,0.75)', 'rgba(245,158,11,0.75)', 'rgba(16,185,129,0.75)'],
+            borderRadius: 8,
+            borderSkipped: false,
+        }]
+    },
+    options: {
+        indexAxis: 'y',
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+            x: { grid: { color: border }, ticks: { font: { size: 11 } }, beginAtZero: true },
+            y: { grid: { display: false }, ticks: { font: { size: 12, weight: '600' } } }
+        }
+    }
+});
+
+// ── Priority pie ──
+new Chart(document.getElementById('priorityChart'), {
+    type: 'pie',
+    data: {
+        labels: ['Urgent', 'Normal'],
+        datasets: [{
+            data: [{{ kpis.urgent }}, {{ kpis.normal }}],
+            backgroundColor: ['rgba(239,68,68,0.8)', 'rgba(16,185,129,0.8)'],
+            borderWidth: 0,
+            hoverOffset: 4,
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: { legend: { position: 'bottom', labels: { padding: 14, font: { size: 11 } } } }
+    }
+});
+
+// ── Animate KPI counters ──
+function animateCount(el, target, duration = 900, isFloat = false) {
+    const start = performance.now();
+    const update = (now) => {
+        const p = Math.min((now - start) / duration, 1);
+        const val = (1 - Math.pow(1 - p, 3)) * target;
+        el.textContent = isFloat ? val.toFixed(1) : Math.round(val);
+        if (p < 1) requestAnimationFrame(update);
+    };
+    requestAnimationFrame(update);
+}
+
+window.addEventListener('load', () => {
+    document.querySelectorAll('[data-target]').forEach((el, i) => {
+        const t = parseFloat(el.dataset.target);
+        setTimeout(() => animateCount(el, t, 800, el.classList.contains('pct')), 200 + i * 60);
+    });
+    // Animate dept bars
+    document.querySelectorAll('.dept-bar-fill').forEach((bar, i) => {
+        setTimeout(() => { bar.style.width = bar.dataset.width + '%'; }, 300 + i * 80);
+    });
+});
+</script>
+{% endblock %}

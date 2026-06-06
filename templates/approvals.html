@@ -1,0 +1,329 @@
+{% extends "base.html" %}
+{% block title %}Approvals{% endblock %}
+
+{% block head %}
+<style>
+.approvals-layout {
+    display: grid;
+    grid-template-columns: 1fr 360px;
+    gap: 24px;
+    align-items: start;
+}
+
+/* ── Approval card ── */
+.approval-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 22px;
+    margin-bottom: 14px;
+    box-shadow: var(--shadow-sm);
+    animation: fadeUp 0.45s cubic-bezier(0.16,1,0.3,1) both;
+    transition: background 0.35s, border-color 0.35s, box-shadow 0.2s;
+    border-left: 4px solid var(--border);
+}
+
+.approval-card.pending  { border-left-color: var(--warn);   }
+.approval-card.approved { border-left-color: var(--closed); opacity: 0.75; }
+.approval-card.rejected { border-left-color: var(--error);  opacity: 0.75; }
+
+.approval-card:hover { box-shadow: var(--shadow-md); }
+
+@keyframes fadeUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.ac-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.ac-id-group { display: flex; flex-direction: column; gap: 4px; }
+.ac-id       { font-size: 11px; font-weight: 700; color: var(--muted); font-family: 'JetBrains Mono', monospace; }
+.ac-category { font-size: 15px; font-weight: 800; color: var(--text); letter-spacing: -0.01em; }
+.ac-chips    { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+
+.chip {
+    display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px;
+    border-radius: 20px; font-size: 11px; font-weight: 600; border: 1px solid;
+}
+.chip-urg    { color: var(--error);  background: rgba(239,68,68,0.08);  border-color: rgba(239,68,68,0.2);  }
+.chip-norm   { color: var(--muted);  background: var(--surface3); border-color: var(--border); }
+.chip-pend   { color: var(--warn);   background: rgba(245,158,11,0.08); border-color: rgba(245,158,11,0.2); }
+.chip-approv { color: var(--closed); background: rgba(16,185,129,0.08); border-color: rgba(16,185,129,0.2); }
+.chip-reject { color: var(--error);  background: rgba(239,68,68,0.08);  border-color: rgba(239,68,68,0.2);  }
+.chip-dept   { color: var(--accent); background: var(--accent-dim); border-color: rgba(37,99,235,0.15); }
+
+.ac-snippet {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: 13px;
+    color: var(--text2);
+    line-height: 1.65;
+    font-style: italic;
+    margin-bottom: 14px;
+}
+
+.ac-meta {
+    display: flex; gap: 20px; flex-wrap: wrap;
+    font-size: 11px; color: var(--muted); margin-bottom: 14px;
+}
+.ac-meta span { display: flex; gap: 5px; align-items: center; }
+.ac-meta strong { color: var(--text2); font-weight: 600; }
+
+/* Approve/Reject form */
+.ac-actions {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 8px;
+    align-items: end;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+}
+
+.ac-note-input {
+    width: 100%;
+    padding: 9px 14px;
+    background: var(--surface2);
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.ac-note-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-dim);
+}
+
+.ac-note-input::placeholder { color: var(--muted); }
+
+.btn-approve-action {
+    padding: 9px 18px; background: var(--closed); color: #fff;
+    font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13px; font-weight: 700;
+    border: none; border-radius: 8px; cursor: pointer; transition: opacity 0.2s; white-space: nowrap;
+}
+.btn-approve-action:hover { opacity: 0.85; }
+
+.btn-reject-action {
+    padding: 9px 16px; background: var(--surface3); color: var(--error);
+    font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13px; font-weight: 700;
+    border: 1px solid rgba(239,68,68,0.25); border-radius: 8px; cursor: pointer;
+    transition: background 0.2s; white-space: nowrap;
+}
+.btn-reject-action:hover { background: rgba(239,68,68,0.08); }
+
+/* Reviewed state */
+.ac-reviewed {
+    display: flex; align-items: center; justify-content: space-between;
+    padding-top: 12px; border-top: 1px solid var(--border);
+    font-size: 12px; color: var(--muted);
+}
+
+/* ── Sidebar summary ── */
+.summary-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+    box-shadow: var(--shadow-sm);
+    margin-bottom: 16px;
+    animation: fadeUp 0.5s cubic-bezier(0.16,1,0.3,1) 0.1s both;
+    transition: background 0.35s, border-color 0.35s;
+}
+
+.summary-title {
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.1em; color: var(--muted); margin-bottom: 14px;
+}
+
+.summary-stat {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 0; border-bottom: 1px solid var(--border);
+    font-size: 13px; color: var(--text2);
+}
+.summary-stat:last-child { border-bottom: none; }
+.summary-stat-val { font-size: 18px; font-weight: 800; color: var(--text); }
+
+.empty-approvals {
+    text-align: center; padding: 48px 24px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 16px;
+}
+.empty-approvals-icon  { font-size: 40px; margin-bottom: 12px; }
+.empty-approvals-title { font-size: 16px; font-weight: 700; color: var(--closed); margin-bottom: 6px; }
+.empty-approvals-sub   { font-size: 13px; color: var(--muted); }
+
+/* Filter tabs */
+.filter-tabs {
+    display: flex; gap: 6px; margin-bottom: 20px; flex-wrap: wrap;
+}
+.filter-tab {
+    padding: 7px 16px; border-radius: 20px; font-size: 12px; font-weight: 600;
+    cursor: pointer; border: 1px solid var(--border); background: var(--surface);
+    color: var(--text2); transition: all 0.2s; font-family: 'Plus Jakarta Sans', sans-serif;
+}
+.filter-tab:hover    { border-color: var(--accent); color: var(--accent); }
+.filter-tab.active   { background: var(--accent); border-color: var(--accent); color: #fff; box-shadow: 0 2px 8px var(--accent-glow); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header animate-in">
+    <div class="page-header-left">
+        <p>Admin overview</p>
+        <h1>Approval Queue</h1>
+    </div>
+    <a href="/workflow" class="btn btn-ghost">← Workflow</a>
+</div>
+
+<div class="approvals-layout">
+    <!-- Main approval list -->
+    <div>
+        <!-- Filter tabs -->
+        <div class="filter-tabs">
+            <button class="filter-tab active" onclick="filterApprovals('all', this)">
+                All ({{ approvals|length }})
+            </button>
+            <button class="filter-tab" onclick="filterApprovals('pending', this)">
+                Pending ({{ approvals|selectattr('status','eq','pending')|list|length }})
+            </button>
+            <button class="filter-tab" onclick="filterApprovals('approved', this)">
+                Approved
+            </button>
+            <button class="filter-tab" onclick="filterApprovals('rejected', this)">
+                Rejected
+            </button>
+        </div>
+
+        {% if approvals %}
+            {% for a in approvals %}
+            <div class="approval-card {{ a.status }}" data-status="{{ a.status }}">
+                <div class="ac-header">
+                    <div class="ac-id-group">
+                        <span class="ac-id">TICKET #{{ a.ticket_id }}</span>
+                        <span class="ac-category">{{ a.category }}</span>
+                    </div>
+                    <div class="ac-chips">
+                        <span class="chip {% if a.priority == 'Urgent' %}chip-urg{% else %}chip-norm{% endif %}">
+                            {% if a.priority == 'Urgent' %}🔴{% endif %} {{ a.priority }}
+                        </span>
+                        <span class="chip chip-dept">→ {{ a.assigned_department or a.category }}</span>
+                        <span class="chip chip-{{ a.status }}">{{ a.status | capitalize }}</span>
+                    </div>
+                </div>
+
+                <div class="ac-snippet">"{{ a.ticket_text[:200] }}{% if a.ticket_text|length > 200 %}…{% endif %}"</div>
+
+                <div class="ac-meta">
+                    <span>👤 <strong>{{ a.requested_by }}</strong></span>
+                    <span>🕐 <strong>{{ a.requested_at[:16] }}</strong></span>
+                    {% if a.sla_due %}
+                    <span>⏱ SLA: <strong>{{ a.sla_due[:16] }}</strong></span>
+                    {% endif %}
+                </div>
+
+                {% if a.status == 'pending' %}
+                <form method="POST" action="/approve/{{ a.ticket_id }}">
+                    <div class="ac-actions">
+                        <input class="ac-note-input" name="note" type="text"
+                               placeholder="Add a note (optional)…" autocomplete="off">
+                        <button type="submit" name="decision" value="approved" class="btn-approve-action">
+                            ✓ Approve
+                        </button>
+                        <button type="submit" name="decision" value="rejected" class="btn-reject-action">
+                            ✕ Reject
+                        </button>
+                    </div>
+                </form>
+                {% else %}
+                <div class="ac-reviewed">
+                    <span>Reviewed by <strong>{{ a.reviewed_by or 'Admin' }}</strong>
+                          {% if a.reviewed_at %}at {{ a.reviewed_at[:16] }}{% endif %}</span>
+                    {% if a.review_note %}
+                    <span style="font-style:italic;color:var(--text2)">{{ a.review_note }}</span>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        {% else %}
+        <div class="empty-approvals">
+            <div class="empty-approvals-icon">✅</div>
+            <p class="empty-approvals-title">No Approvals Required</p>
+            <p class="empty-approvals-sub">All tickets are proceeding without manual review.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Sidebar summary -->
+    <div>
+        <div class="summary-card">
+            <p class="summary-title">Approval Summary</p>
+            <div class="summary-stat">
+                <span>Total Requests</span>
+                <span class="summary-stat-val">{{ stats.total }}</span>
+            </div>
+            <div class="summary-stat">
+                <span style="color:var(--warn)">Pending</span>
+                <span class="summary-stat-val" style="color:var(--warn)">{{ stats.pending }}</span>
+            </div>
+            <div class="summary-stat">
+                <span style="color:var(--closed)">Approved</span>
+                <span class="summary-stat-val" style="color:var(--closed)">{{ stats.approved }}</span>
+            </div>
+            <div class="summary-stat">
+                <span style="color:var(--error)">Rejected</span>
+                <span class="summary-stat-val" style="color:var(--error)">{{ stats.rejected }}</span>
+            </div>
+            <div class="summary-stat">
+                <span>Approval Rate</span>
+                <span class="summary-stat-val">{{ stats.approval_rate }}%</span>
+            </div>
+        </div>
+
+        <div class="summary-card">
+            <p class="summary-title">Which Tickets Need Approval</p>
+            <div style="display:flex;flex-direction:column;gap:10px;margin-top:4px">
+                <div style="font-size:13px;color:var(--text2);line-height:1.7;display:flex;gap:8px">
+                    <span style="flex-shrink:0">👥</span>
+                    <span><strong style="color:var(--text)">HR</strong> — all tickets require approval</span>
+                </div>
+                <div style="font-size:13px;color:var(--text2);line-height:1.7;display:flex;gap:8px">
+                    <span style="flex-shrink:0">💰</span>
+                    <span><strong style="color:var(--text)">Finance</strong> — all tickets require approval</span>
+                </div>
+                <div style="font-size:13px;color:var(--text2);line-height:1.7;display:flex;gap:8px">
+                    <span style="flex-shrink:0">🔴</span>
+                    <span><strong style="color:var(--text)">All urgent tickets</strong> regardless of category</span>
+                </div>
+                <div style="font-size:13px;color:var(--text2);line-height:1.7;display:flex;gap:8px">
+                    <span style="flex-shrink:0">💻⚙️</span>
+                    <span><strong style="color:var(--text)">IT & Operations</strong> — urgent only</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function filterApprovals(status, btn) {
+    document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.approval-card').forEach(card => {
+        card.style.display = (status === 'all' || card.dataset.status === status) ? '' : 'none';
+    });
+}
+</script>
+{% endblock %}
