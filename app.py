@@ -350,6 +350,15 @@ def history():
 def department_tickets():
     conn = get_db()
     current_user_id = session["user_id"]
+
+    # ensure columns exist before querying
+    existing_cols = [row[1] for row in conn.execute("PRAGMA table_info(tickets)").fetchall()]
+    if "priority" not in existing_cols:
+        conn.execute("ALTER TABLE tickets ADD COLUMN priority TEXT DEFAULT 'Normal'")
+    if "assigned_department" not in existing_cols:
+        conn.execute("ALTER TABLE tickets ADD COLUMN assigned_department TEXT")
+    conn.commit()
+
     if session["role"] == "admin":
         tickets = conn.execute(
             "SELECT * FROM tickets WHERE user_id != ? ORDER BY id DESC",
